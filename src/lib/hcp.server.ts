@@ -163,7 +163,7 @@ export function mapHcpJob(job: HcpJob) {
     status,
     scheduled_date: scheduledDate,
     assigned_employee_ids: assigned,
-    raw_data: job as unknown,
+    raw_data: job as unknown as Record<string, unknown>,
     last_synced_at: new Date().toISOString(),
   };
 }
