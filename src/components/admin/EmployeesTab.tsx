@@ -35,6 +35,7 @@ export function EmployeesTab() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [creating, setCreating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -61,6 +62,26 @@ export function EmployeesTab() {
     void load();
   }
 
+  async function handleSyncFromHcp() {
+    setSyncing(true);
+    try {
+      const response = await fetch('/__internal/sync-hcp-employees', { method: 'POST' });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to sync employees');
+      }
+      const result = await response.json();
+      toast.success(
+        `Synced ${result.total_synced} employees (${result.new_count} new, ${result.updated_count} updated)`
+      );
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to sync employees");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -68,10 +89,11 @@ export function EmployeesTab() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            disabled
-            title="Coming soon — will be implemented by Claude Code"
+            onClick={handleSyncFromHcp}
+            disabled={syncing}
           >
-            <RefreshCw className="w-4 h-4 mr-1" /> Sync from HouseCall Pro
+            <RefreshCw className={`w-4 h-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync from HouseCall Pro'}
           </Button>
           <Button onClick={() => setCreating(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground">
             <Plus className="w-4 h-4 mr-1" /> Add Employee
