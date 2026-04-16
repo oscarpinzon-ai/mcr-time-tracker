@@ -70,7 +70,10 @@ export const syncHcpJobs = createServerFn({ method: "POST" })
     let upserted = 0;
     // Upsert in batches of 50
     for (let i = 0; i < rows.length; i += 50) {
-      const batch = rows.slice(i, i + 50);
+      const batch = rows.slice(i, i + 50).map((r) => ({
+        ...r,
+        raw_data: JSON.parse(JSON.stringify(r.raw_data)),
+      }));
       const { error } = await supabaseAdmin
         .from("hcp_jobs_cache")
         .upsert(batch, { onConflict: "hcp_job_id" });
