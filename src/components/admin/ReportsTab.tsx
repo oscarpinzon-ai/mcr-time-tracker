@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Employee, PauseLog, TimeEntry } from "@/lib/types";
 import { formatHoursMinutes, workedSeconds } from "@/lib/time";
+import { exportToPDF, exportToExcel } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,7 @@ export function ReportsTab() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [data, setData] = useState<EntryWithPauses[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -80,6 +82,63 @@ export function ReportsTab() {
     if (e.entry.total_minutes != null) return Number(e.entry.total_minutes);
     const end = e.entry.clock_out ? new Date(e.entry.clock_out).getTime() : Date.now();
     return Math.round(workedSeconds(e.entry, e.pauses, end) / 60);
+  }
+
+  async function handleExportPDF() {
+    setExporting(true);
+    try {
+      // Compute current data to ensure we export latest
+      await new Promise(r => setTimeout(r, 100));
+      exportToPDF({
+        dateRange: { from, to },
+        totalToday: formatHoursMinutes(totalToday),
+        totalWeek: formatHoursMinutes(totalWeek),
+        totalMonth: formatHoursMinutes(totalMonth),
+        avgPerTechPerDay: formatHoursMinutes(avgPerTechPerDay),
+        hoursByTech,
+        hoursByType,
+        dailyRows: dailyRows.map(r => ({
+          date: r.date,
+          tech: r.tech,
+          jobs: r.jobs,
+          minutes: r.minutes,
+          utilization: (r.minutes / 60 / 13) * 100,
+        })),
+      });
+      toast.success('PDF exported successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to export PDF');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      await new Promise(r => setTimeout(r, 100));
+      exportToExcel({
+        dateRange: { from, to },
+        totalToday: formatHoursMinutes(totalToday),
+        totalWeek: formatHoursMinutes(totalWeek),
+        totalMonth: formatHoursMinutes(totalMonth),
+        avgPerTechPerDay: formatHoursMinutes(avgPerTechPerDay),
+        hoursByTech,
+        hoursByType,
+        dailyRows: dailyRows.map(r => ({
+          date: r.date,
+          tech: r.tech,
+          jobs: r.jobs,
+          minutes: r.minutes,
+          utilization: (r.minutes / 60 / 13) * 100,
+        })),
+      });
+      toast.success('Excel exported successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to export Excel');
+    } finally {
+      setExporting(false);
+    }
   }
 
   // Summary cards (today / week / month, all-time within filter)
@@ -174,15 +233,19 @@ export function ReportsTab() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => toast.message("PDF export coming soon", { description: "This will be implemented by Claude Code." })}
+            onClick={handleExportPDF}
+            disabled={exporting || loading}
           >
-            <Download className="w-4 h-4 mr-1" /> Export PDF
+            {exporting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+            Export PDF
           </Button>
           <Button
             variant="outline"
-            onClick={() => toast.message("Excel export coming soon", { description: "This will be implemented by Claude Code." })}
+            onClick={handleExportExcel}
+            disabled={exporting || loading}
           >
-            <FileSpreadsheet className="w-4 h-4 mr-1" /> Export Excel
+            {exporting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+            Export Excel
           </Button>
         </div>
       </div>
