@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { syncHcpEmployees } from "@/lib/hcp.functions";
 import type { Employee } from "@/lib/types";
 import {
   Table,
@@ -35,6 +37,23 @@ export function EmployeesTab() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Employee | null>(null);
   const [creating, setCreating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const syncFn = useServerFn(syncHcpEmployees);
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const result = await syncFn();
+      toast.success(
+        `Synced ${result.total} employees (${result.created} new, ${result.updated} updated)`,
+      );
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -66,12 +85,13 @@ export function EmployeesTab() {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-2xl font-bold uppercase tracking-tight">Employees</h2>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled
-            title="Coming soon — will be implemented by Claude Code"
-          >
-            <RefreshCw className="w-4 h-4 mr-1" /> Sync from HouseCall Pro
+          <Button variant="outline" onClick={handleSync} disabled={syncing}>
+            {syncing ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 mr-1" />
+            )}
+            Sync from HouseCall Pro
           </Button>
           <Button onClick={() => setCreating(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground">
             <Plus className="w-4 h-4 mr-1" /> Add Employee
