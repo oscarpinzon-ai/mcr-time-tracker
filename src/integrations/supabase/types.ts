@@ -14,7 +14,195 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_edits_log: {
+        Row: {
+          edited_at: string
+          edited_by: string
+          field_changed: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          time_entry_id: string
+        }
+        Insert: {
+          edited_at?: string
+          edited_by: string
+          field_changed: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          time_entry_id: string
+        }
+        Update: {
+          edited_at?: string
+          edited_by?: string
+          field_changed?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          time_entry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_edits_log_time_entry_id_fkey"
+            columns: ["time_entry_id"]
+            isOneToOne: false
+            referencedRelation: "time_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          created_at: string
+          hcp_employee_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          hcp_employee_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          role?: string
+        }
+        Update: {
+          created_at?: string
+          hcp_employee_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          role?: string
+        }
+        Relationships: []
+      }
+      hcp_jobs_cache: {
+        Row: {
+          assigned_employee_ids: string[] | null
+          customer_name: string | null
+          hcp_job_id: string
+          id: string
+          job_address: string | null
+          job_number: string
+          job_type: string | null
+          last_synced_at: string
+          raw_data: Json | null
+          scheduled_date: string | null
+          status: string | null
+        }
+        Insert: {
+          assigned_employee_ids?: string[] | null
+          customer_name?: string | null
+          hcp_job_id: string
+          id?: string
+          job_address?: string | null
+          job_number: string
+          job_type?: string | null
+          last_synced_at?: string
+          raw_data?: Json | null
+          scheduled_date?: string | null
+          status?: string | null
+        }
+        Update: {
+          assigned_employee_ids?: string[] | null
+          customer_name?: string | null
+          hcp_job_id?: string
+          id?: string
+          job_address?: string | null
+          job_number?: string
+          job_type?: string | null
+          last_synced_at?: string
+          raw_data?: Json | null
+          scheduled_date?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      pause_logs: {
+        Row: {
+          id: string
+          pause_end: string | null
+          pause_start: string
+          time_entry_id: string
+        }
+        Insert: {
+          id?: string
+          pause_end?: string | null
+          pause_start: string
+          time_entry_id: string
+        }
+        Update: {
+          id?: string
+          pause_end?: string | null
+          pause_start?: string
+          time_entry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pause_logs_time_entry_id_fkey"
+            columns: ["time_entry_id"]
+            isOneToOne: false
+            referencedRelation: "time_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_entries: {
+        Row: {
+          clock_in: string
+          clock_out: string | null
+          created_at: string
+          customer_name: string | null
+          employee_id: string
+          hcp_job_id: string | null
+          id: string
+          job_address: string | null
+          job_number: string
+          job_type: string | null
+          status: string
+          total_minutes: number | null
+        }
+        Insert: {
+          clock_in: string
+          clock_out?: string | null
+          created_at?: string
+          customer_name?: string | null
+          employee_id: string
+          hcp_job_id?: string | null
+          id?: string
+          job_address?: string | null
+          job_number: string
+          job_type?: string | null
+          status?: string
+          total_minutes?: number | null
+        }
+        Update: {
+          clock_in?: string
+          clock_out?: string | null
+          created_at?: string
+          customer_name?: string | null
+          employee_id?: string
+          hcp_job_id?: string | null
+          id?: string
+          job_address?: string | null
+          job_number?: string
+          job_type?: string | null
+          status?: string
+          total_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
