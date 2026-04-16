@@ -96,6 +96,122 @@ export async function syncHcpJobsScheduled() {
   }
 }
 
+export async function autoClockOutScheduled() {
+  // Get current time in CDT
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+
+  // Create 7:00 PM CDT timestamp
+  const clockOutTime = new Date(`${year}-${month}-${day}T19:00:00`);
+
+  try {
+    // Find all active/paused time entries without clock out
+    const { data: entries, error } = await supabaseAdmin
+      .from('time_entries')
+      .select('*')
+      .in('status', ['active', 'paused'])
+      .is('clock_out', null);
+
+    if (error) throw error;
+    if (!entries || entries.length === 0) {
+      console.log('No active time entries to clock out');
+      return { success: true, clocked_out_count: 0 };
+    }
+
+    let clockedOutCount = 0;
+
+    for (const entry of entries) {
+      // Close any open pause logs
+      const { data: pauseLogs } = await supabaseAdmin
+        .from('pause_logs')
+        .select('*')
+        .eq('time_entry_id', entry.id)
+        .is('pause_end', null);
+
+      if (pauseLogs) {
+        for (const pauseLog of pauseLogs) {
+          await supabaseAdmin
+            .from('pause_logs')
+            .update({ pause_end: clockOutTime.toISOString() })
+            .eq('id', pauseLog.id);
+        }
+      }
+
+      // Calculate total minutes
+      const clockInTime = new Date(entry.clock_in);
+      const diffMs = clockOutTime.getTime() - clockInTime.getTime();
+      let totalMinutes = Math.floor(diffMs / (1000 * 60));
+
+      // Subtract pause time
+      if (pauseLogs) {
+        for (const pauseLog of pauseLogs) {
+          const pauseStart = new Date(pauseLog.pause_start);
+          const pauseEnd = new Date(pauseLog.pause_end || clockOutTime.toISOString());
+          const pauseMinutes = Math.floor((pauseEnd.getTime() - pauseStart.getTime()) / (1000 * 60));
+          totalMinutes -= pauseMinutes;
+        }
+      }
+
+      // Update time entry
+      await supabaseAdmin
+        .from('time_entries')
+        .update({
+          clock_out: clockOutTime.toISOString(),
+          status: 'completed',
+          total_minutes: Math.max(0, totalMinutes),
+        })
+        .eq('id', entry.id);
+
+      // Log to admin edits
+      await supabaseAdmin.from('admin_edits_log').insert({
+        time_entry_id: entry.id,
+        edited_by: 'System (Auto Clock-Out)',
+        field_changed: 'clock_out',
+        old_value: null,
+        new_value: clockOutTime.toISOString(),
+      });
+
+      clockedOutCount++;
+    }
+
+    console.log(`Auto clocked out ${clockedOutCount} entries at 7:00 PM CDT`);
+    return { success: true, clocked_out_count: clockedOutCount };
+  } catch (error) {
+    console.error('Auto clock-out error:', error);
+    return {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export const scheduled = async (event: ScheduledEvent, env: unknown, ctx: ExecutionContext) => {
-  ctx.waitUntil(syncHcpJobsScheduled());
+  // Check which cron triggered this
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    hour: '2-digit',
+    hour12: false,
+  });
+  const hour = parseInt(formatter.format(now));
+
+  // Run auto clock-out at 7PM CDT (cron at 00:00 UTC)
+  if (hour === 19) {
+    ctx.waitUntil(autoClockOutScheduled());
+  } else {
+    // Run job sync during other times
+    ctx.waitUntil(syncHcpJobsScheduled());
+  }
 };

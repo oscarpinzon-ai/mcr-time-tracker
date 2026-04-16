@@ -5,7 +5,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
   "triggers": {
-    "crons": ["*/3 * * * *"]
+    "crons": [
+      "*/3 * * * *",
+      "0 0 * * 0,2-6"
+    ]
   },
   "env": {
     "development": {
