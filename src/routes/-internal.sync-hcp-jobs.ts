@@ -43,6 +43,9 @@ export const Route = createAPIFileRoute('/__internal/sync-hcp-jobs')({
 
       // Upsert into hcp_jobs_cache
       for (const job of jobs) {
+        const scheduled_date = getScheduledDate(job);
+        const assigned_employee_ids = getAssignedEmployeeIds(job);
+
         const mappedJob = {
           hcp_job_id: job.id,
           job_number: job.job_number || '',
@@ -50,16 +53,30 @@ export const Route = createAPIFileRoute('/__internal/sync-hcp-jobs')({
           job_type: getJobType(job),
           job_address: getJobAddress(job),
           status: job.work_status || null,
-          scheduled_date: getScheduledDate(job),
-          assigned_employee_ids: getAssignedEmployeeIds(job),
+          scheduled_date,
+          assigned_employee_ids,
           last_synced_at: new Date().toISOString(),
           raw_data: job,
         };
+
+        // Debug logging
+        if (!scheduled_date || !assigned_employee_ids?.length) {
+          console.warn(`Job ${job.id} (${job.job_number}):`, {
+            has_scheduled_date: !!scheduled_date,
+            scheduled_date,
+            assigned_employee_ids,
+            raw_scheduled: job.schedule?.scheduled_start,
+            raw_dispatched: job.dispatched_employees,
+            work_status: job.work_status,
+          });
+        }
 
         await supabaseAdmin
           .from('hcp_jobs_cache')
           .upsert(mappedJob, { onConflict: 'hcp_job_id' });
       }
+
+      console.log(`Synced ${jobs.length} jobs. Jobs with missing scheduled_date or employees logged above.`);
 
       return new Response(
         JSON.stringify({
