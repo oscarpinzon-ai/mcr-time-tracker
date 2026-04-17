@@ -176,7 +176,18 @@ export function getJobType(job: HcpJobResponse): string | null {
 export function getScheduledDate(job: HcpJobResponse): string | null {
   const scheduled = job.schedule?.scheduled_start;
   if (!scheduled) return null;
-  return new Date(scheduled).toISOString().split('T')[0];
+  const date = new Date(scheduled);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find(p => p.type === 'year')?.value || '';
+  const month = parts.find(p => p.type === 'month')?.value || '';
+  const day = parts.find(p => p.type === 'day')?.value || '';
+  return `${year}-${month}-${day}`;
 }
 
 export function getAssignedEmployeeIds(job: HcpJobResponse): string[] {

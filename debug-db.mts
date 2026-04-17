@@ -20,8 +20,16 @@ async function main() {
     console.log(`  - ${emp.name} (ID: ${emp.id.substring(0, 8)}..., HCP ID: ${emp.hcp_employee_id || 'NONE'})`);
   });
 
-  // Get today's jobs in cache
-  const today = new Date().toISOString().slice(0, 10);
+  // Get today's jobs in cache (using CDT)
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(now);
+  const today = `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}`;
   const { data: jobs } = await supabase
     .from('hcp_jobs_cache')
     .select('*')

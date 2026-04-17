@@ -194,7 +194,20 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    return `${year}-${month}-${day}`;
+  });
 
   useEffect(() => {
     const i = setInterval(() => setTick((t) => t + 1), 1000);
@@ -365,7 +378,20 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
     !activeEntry || jobs.some((j) => j.hcp_job_id === activeEntry.hcp_job_id);
 
   const selectedDateObj = new Date(selectedDate);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = (() => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    return `${year}-${month}-${day}`;
+  })();
   const isToday = selectedDate === today;
 
   function handlePrevDay() {
