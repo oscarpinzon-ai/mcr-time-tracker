@@ -157,18 +157,64 @@ export function mapHcpJob(job: HcpJob, customerEmailMap?: Map<string, string>) {
 
   if (customerEmailMap && job.customer?.email) {
     const mappedName = customerEmailMap.get(job.customer.email.toLowerCase());
-    if (mappedName) {
+    if (mappedName && mappedName !== "Modern Compactor Repair") {
       customerName = mappedName;
     }
   }
 
-  // Fallback to existing logic if not found in map
+  // If not found in map or map has wrong company, infer from email domain
+  if (!customerName && job.customer?.email && job.customer.email.includes("@")) {
+    const domain = job.customer.email.split("@")[1];
+    const company = domain.split(".")[0];
+
+    // Common company word endings to use as split points
+    const companyWords = [
+      "waste", "compactor", "group", "services", "inc", "corp", "repair", "co",
+      "llc", "tech", "solutions", "systems", "equipment", "rental", "supply",
+      "management", "drs", "construction", "landscaping", "can", "hauling"
+    ];
+
+    let formatted = company;
+
+    // Try to insert spaces before known company words
+    for (const word of companyWords) {
+      const regex = new RegExp(`(${word})`, "gi");
+      formatted = formatted.replace(regex, " $1");
+    }
+
+    // Clean up and capitalize
+    formatted = formatted
+      .replace(/([a-z])([A-Z])/g, "$1 $2")           // camelCase: aB -> a B
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")    // Acronyms: ABc -> A Bc
+      .split(/[\s\-_]+/)                              // Split on spaces, hyphens, underscores
+      .filter(word => word.length > 0)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
+
+    // Only use if it looks reasonable
+    const gmailLike = ["gmail", "yahoo", "outlook", "hotmail", "aol"];
+    const isGenericEmail = gmailLike.includes(company.toLowerCase());
+
+    if (formatted && formatted.toLowerCase() !== "gmail" && formatted.length > 2 && formatted !== company) {
+      customerName = formatted;
+    } else if (!isGenericEmail && company && company !== "moderncompactor" && company.length > 2) {
+      // Fallback: at least capitalize it
+      customerName = company.charAt(0).toUpperCase() + company.slice(1);
+    }
+  }
+
+  // Fallback to existing logic if still not found
   if (!customerName) {
     customerName =
       job.customer?.company_name ??
       job.customer?.name ??
       [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ").trim() ??
       null;
+  }
+
+  // Don't use MCR as customer name (it's the tenant, not the actual customer)
+  if (customerName === "Modern Compactor Repair") {
+    customerName = null;
   }
 
   const addressParts = [
