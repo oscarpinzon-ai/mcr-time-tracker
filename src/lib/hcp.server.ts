@@ -36,8 +36,15 @@ export type HcpJob = {
 };
 
 function getApiKey(): string {
-  const key = process.env.HCP_API_KEY;
-  if (!key) throw new Error("HCP_API_KEY is not configured");
+  const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const key = process.env.HCP_API_KEY ?? runtimeEnv?.HCP_API_KEY;
+
+  if (!key) {
+    throw new Error(
+      "HCP_API_KEY is not available in the backend runtime yet. Re-save the secret and retry, or publish before testing sync.",
+    );
+  }
+
   return key;
 }
 
