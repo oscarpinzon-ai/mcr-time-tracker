@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TechnicianRouteImport } from './routes/technician'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as Api_scheduledRouteImport } from './routes/api/__scheduled'
+import { Route as ApiScheduledRouteImport } from './routes/api/scheduled'
 
 const TechnicianRoute = TechnicianRouteImport.update({
   id: '/technician',
@@ -29,9 +29,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Api_scheduledRoute = Api_scheduledRouteImport.update({
-  id: '/api/__scheduled',
-  path: '/api',
+const ApiScheduledRoute = ApiScheduledRouteImport.update({
+  id: '/api/scheduled',
+  path: '/api/scheduled',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -39,34 +39,34 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/technician': typeof TechnicianRoute
-  '/api': typeof Api_scheduledRoute
+  '/api/scheduled': typeof ApiScheduledRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/technician': typeof TechnicianRoute
-  '/api': typeof Api_scheduledRoute
+  '/api/scheduled': typeof ApiScheduledRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/technician': typeof TechnicianRoute
-  '/api/__scheduled': typeof Api_scheduledRoute
+  '/api/scheduled': typeof ApiScheduledRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/technician' | '/api'
+  fullPaths: '/' | '/admin' | '/technician' | '/api/scheduled'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/technician' | '/api'
-  id: '__root__' | '/' | '/admin' | '/technician' | '/api/__scheduled'
+  to: '/' | '/admin' | '/technician' | '/api/scheduled'
+  id: '__root__' | '/' | '/admin' | '/technician' | '/api/scheduled'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   TechnicianRoute: typeof TechnicianRoute
-  Api_scheduledRoute: typeof Api_scheduledRoute
+  ApiScheduledRoute: typeof ApiScheduledRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,11 +92,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/__scheduled': {
-      id: '/api/__scheduled'
-      path: '/api'
-      fullPath: '/api'
-      preLoaderRoute: typeof Api_scheduledRouteImport
+    '/api/scheduled': {
+      id: '/api/scheduled'
+      path: '/api/scheduled'
+      fullPath: '/api/scheduled'
+      preLoaderRoute: typeof ApiScheduledRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -106,7 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   TechnicianRoute: TechnicianRoute,
-  Api_scheduledRoute: Api_scheduledRoute,
+  ApiScheduledRoute: ApiScheduledRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
