@@ -194,6 +194,7 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     const i = setInterval(() => setTick((t) => t + 1), 1000);
@@ -201,13 +202,13 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
   }, []);
 
   async function refresh() {
-    const today = new Date().toISOString().slice(0, 10);
+    const queryDate = selectedDate;
 
     const jobsPromise = employee.hcp_employee_id
       ? supabase
           .from("hcp_jobs_cache")
           .select("*")
-          .eq("scheduled_date", today)
+          .eq("scheduled_date", queryDate)
           .contains("assigned_employee_ids", [employee.hcp_employee_id])
           .in("status", ["scheduled", "in progress"])
       : Promise.resolve({ data: [], error: null } as const);
@@ -247,7 +248,7 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employee.id]);
+  }, [employee.id, selectedDate]);
 
   async function handleStart(job: HcpJob) {
     if (activeEntry) {
@@ -363,15 +364,69 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
   const hasActiveInList =
     !activeEntry || jobs.some((j) => j.hcp_job_id === activeEntry.hcp_job_id);
 
+  const selectedDateObj = new Date(selectedDate);
+  const today = new Date().toISOString().slice(0, 10);
+  const isToday = selectedDate === today;
+
+  function handlePrevDay() {
+    const prev = new Date(selectedDateObj);
+    prev.setDate(prev.getDate() - 1);
+    setSelectedDate(prev.toISOString().slice(0, 10));
+  }
+
+  function handleNextDay() {
+    const next = new Date(selectedDateObj);
+    next.setDate(next.getDate() + 1);
+    setSelectedDate(next.toISOString().slice(0, 10));
+  }
+
+  function handleToday() {
+    setSelectedDate(today);
+  }
+
   return (
     <div>
       <div className="mb-5">
         <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
-          Today · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+          {isToday ? "Today" : "Selected Date"} · {selectedDateObj.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
         </p>
         <h1 className="text-3xl font-bold uppercase tracking-tight">
           {employee.name}'s Jobs
         </h1>
+      </div>
+
+      {/* Date Picker */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-5 shadow-card">
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={handlePrevDay}
+            className="flex-1 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-sm transition-colors"
+          >
+            ← Prev
+          </button>
+          <div className="flex-1">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-center font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+          <button
+            onClick={handleNextDay}
+            className="flex-1 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-sm transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+        {!isToday && (
+          <button
+            onClick={handleToday}
+            className="w-full px-3 py-2 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-semibold text-sm transition-colors"
+          >
+            Back to Today
+          </button>
+        )}
       </div>
 
       {!hasActiveInList && activeEntry && (
@@ -408,8 +463,10 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
         })}
         {orderedJobs.length === 0 && !activeEntry && (
           <div className="text-center py-16 border-2 border-dashed border-border rounded-lg bg-card">
-            <p className="text-muted-foreground font-medium">No jobs assigned for today.</p>
-            <p className="text-xs text-muted-foreground mt-1">Check back later or contact dispatch.</p>
+            <p className="text-muted-foreground font-medium">No jobs assigned for {isToday ? "today" : "this date"}.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isToday ? "Check back later or contact dispatch." : "Try a different date or contact dispatch."}
+            </p>
           </div>
         )}
       </div>
