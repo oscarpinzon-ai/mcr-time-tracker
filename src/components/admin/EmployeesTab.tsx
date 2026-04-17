@@ -44,6 +44,11 @@ export function EmployeesTab() {
     setSyncing(true);
     try {
       const result = await syncFn();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
       toast.success(
         `Synced ${result.total} employees (${result.created} new, ${result.updated} updated)`,
       );
