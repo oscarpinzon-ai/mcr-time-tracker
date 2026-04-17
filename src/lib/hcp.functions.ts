@@ -5,6 +5,7 @@ import {
   fetchAllEmployees,
   fetchJobsInRange,
   mapHcpJob,
+  buildCustomerEmailMap,
 } from "@/lib/hcp.server";
 
 function getServerSupabase() {
@@ -134,7 +135,8 @@ export const syncHcpJobs = createServerFn({ method: "POST" })
       const end = data.endDate ?? fmt(new Date(today.getTime() + 7 * 86400000));
 
       const jobs = await fetchJobsInRange(start, end);
-      const rows = jobs.map(mapHcpJob);
+      const customerEmailMap = await buildCustomerEmailMap();
+      const rows = jobs.map((job) => mapHcpJob(job, customerEmailMap));
 
       let upserted = 0;
       for (let i = 0; i < rows.length; i += 50) {

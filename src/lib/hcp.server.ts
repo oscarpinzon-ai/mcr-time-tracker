@@ -70,6 +70,32 @@ export async function hcpFetch<T>(path: string, params?: Record<string, string |
   return (await res.json()) as T;
 }
 
+/** Build a map of customer email → customer company name for lookups. */
+export async function buildCustomerEmailMap(): Promise<Map<string, string>> {
+  const emailMap = new Map<string, string>();
+  let page = 1;
+  const pageSize = 100;
+
+  while (page < 100) {
+    const data = await hcpFetch<{ customers?: any[]; data?: any[] }>("/customers", {
+      page,
+      page_size: pageSize,
+    });
+    const list = data.customers ?? data.data ?? [];
+
+    list.forEach((customer: any) => {
+      if (customer.email && customer.company_name) {
+        emailMap.set(customer.email.toLowerCase(), customer.company_name);
+      }
+    });
+
+    if (list.length < pageSize) break;
+    page++;
+  }
+
+  return emailMap;
+}
+
 /** Fetch all employees, paginating through results. */
 export async function fetchAllEmployees(): Promise<HcpEmployee[]> {
   const all: HcpEmployee[] = [];
@@ -110,12 +136,25 @@ export async function fetchJobsInRange(startDate: string, endDate: string): Prom
 }
 
 /** Map an HCP job into our hcp_jobs_cache row. */
-export function mapHcpJob(job: HcpJob) {
-  const customerName =
-    job.customer?.company_name ??
-    job.customer?.name ??
-    [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ").trim() ??
-    null;
+export function mapHcpJob(job: HcpJob, customerEmailMap?: Map<string, string>) {
+  // Try to get the real customer name from email map first
+  let customerName: string | null = null;
+
+  if (customerEmailMap && job.customer?.email) {
+    const mappedName = customerEmailMap.get(job.customer.email.toLowerCase());
+    if (mappedName) {
+      customerName = mappedName;
+    }
+  }
+
+  // Fallback to existing logic if not found in map
+  if (!customerName) {
+    customerName =
+      job.customer?.company_name ??
+      job.customer?.name ??
+      [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ").trim() ??
+      null;
+  }
 
   const addressParts = [
     job.address?.street,
