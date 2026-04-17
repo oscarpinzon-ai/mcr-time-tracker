@@ -58,7 +58,7 @@ export async function hcpFetch<T>(path: string, params?: Record<string, string |
 
   const res = await fetch(url.toString(), {
     headers: {
-      Authorization: `Token ${getApiKey()}`,
+      Authorization: `Bearer ${getApiKey()}`,
       Accept: "application/json",
     },
   });
@@ -153,8 +153,22 @@ export function mapHcpJob(job: HcpJob) {
   else if (/yard/.test(haystack)) jobType = "Yard Work";
   else jobType = "Service Call / Repair";
 
+  // Extract scheduled date in CDT, not UTC
   const scheduledDate = job.schedule?.scheduled_start
-    ? job.schedule.scheduled_start.slice(0, 10)
+    ? (() => {
+        const date = new Date(job.schedule.scheduled_start);
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Chicago',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        const parts = formatter.formatToParts(date);
+        const year = parts.find(p => p.type === 'year')?.value || '';
+        const month = parts.find(p => p.type === 'month')?.value || '';
+        const day = parts.find(p => p.type === 'day')?.value || '';
+        return `${year}-${month}-${day}`;
+      })()
     : null;
 
   const assigned = (job.assigned_employees ?? job.dispatched_employees ?? [])
