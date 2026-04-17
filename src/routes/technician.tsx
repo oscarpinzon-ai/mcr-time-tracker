@@ -209,7 +209,7 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
           .select("*")
           .eq("scheduled_date", today)
           .contains("assigned_employee_ids", [employee.hcp_employee_id])
-          .in("status", ["scheduled", "in_progress"])
+          .in("status", ["scheduled", "in progress"])
       : Promise.resolve({ data: [], error: null } as const);
 
     const entryPromise = supabase
