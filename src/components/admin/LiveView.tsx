@@ -70,9 +70,13 @@ export function LiveView() {
   async function handleSyncJobs() {
     setSyncing(true);
     try {
-      const result = await syncFn();
-      toast.success(`Synced ${result.total} jobs`);
-      void load();
+      const result = await syncFn({ data: {} });
+      if (result.ok) {
+        toast.success(`Synced ${result.total} jobs`);
+        void load();
+      } else {
+        toast.error(result.error);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to sync jobs");
     } finally {

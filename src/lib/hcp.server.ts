@@ -18,7 +18,7 @@ export type HcpJob = {
   id: string;
   invoice_number?: string;
   job_number?: string;
-  customer?: { first_name?: string; last_name?: string; name?: string };
+  customer?: { first_name?: string; last_name?: string; name?: string; email?: string; company_name?: string };
   address?: {
     street?: string;
     street_line_2?: string;
