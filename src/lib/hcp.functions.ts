@@ -106,8 +106,30 @@ export const syncHcpJobs = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<HcpJobSyncResult> => {
     try {
       const supabase = getServerSupabase();
-      const today = new Date();
+
+      // Get today's date in CDT, not UTC
+      const getTodayInCDT = () => {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Chicago',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        const parts = formatter.formatToParts(now);
+        const year = parts.find(p => p.type === 'year')?.value || '';
+        const month = parts.find(p => p.type === 'month')?.value || '';
+        const day = parts.find(p => p.type === 'day')?.value || '';
+        return `${year}-${month}-${day}`;
+      };
+
+      const getTodayDate = () => {
+        const str = getTodayInCDT();
+        return new Date(str + 'T00:00:00Z');
+      };
+
       const fmt = (d: Date) => d.toISOString().slice(0, 10);
+      const today = getTodayDate();
       const start = data.startDate ?? fmt(new Date(today.getTime() - 7 * 86400000));
       const end = data.endDate ?? fmt(new Date(today.getTime() + 7 * 86400000));
 
