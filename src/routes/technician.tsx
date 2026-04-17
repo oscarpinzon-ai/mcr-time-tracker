@@ -264,7 +264,7 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
   }, [employee.id, selectedDate]);
 
   async function handleStart(job: HcpJob) {
-    if (activeEntry) {
+    if (activeEntry?.status === "active") {
       toast.error("Finish or pause your current job before starting a new one.");
       return;
     }
@@ -479,7 +479,7 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
               pauses={isActiveJob ? pauses : []}
               tick={tick}
               busy={busy}
-              hasOtherActive={!!activeEntry && !isActiveJob}
+              hasOtherActive={activeEntry?.status === "active" && !isActiveJob}
               onStart={() => handleStart(job)}
               onPause={handlePause}
               onResume={handleResume}
