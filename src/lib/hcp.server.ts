@@ -112,6 +112,7 @@ export async function fetchJobsInRange(startDate: string, endDate: string): Prom
 /** Map an HCP job into our hcp_jobs_cache row. */
 export function mapHcpJob(job: HcpJob) {
   const customerName =
+    job.customer?.company_name ??
     job.customer?.name ??
     [job.customer?.first_name, job.customer?.last_name].filter(Boolean).join(" ").trim() ??
     null;
