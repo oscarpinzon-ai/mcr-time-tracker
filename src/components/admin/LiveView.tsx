@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { syncHcpJobs } from "@/lib/hcp.functions";
 import type { Employee, PauseLog, TimeEntry } from "@/lib/types";
 import { formatDuration, workedSeconds } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { Loader2, Wrench } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Wrench, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 type EmployeeStatus = {
   employee: Employee;
@@ -15,6 +19,8 @@ export function LiveView() {
   const [data, setData] = useState<EmployeeStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const syncFn = useServerFn(syncHcpJobs);
 
   useEffect(() => {
     const i = setInterval(() => setTick((t) => t + 1), 1000);
@@ -61,6 +67,19 @@ export function LiveView() {
     setLoading(false);
   }
 
+  async function handleSyncJobs() {
+    setSyncing(true);
+    try {
+      const result = await syncFn();
+      toast.success(`Synced ${result.total} jobs`);
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync jobs");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -73,9 +92,20 @@ export function LiveView() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold uppercase tracking-tight">Crew Status</h2>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-          Auto-refresh · 30s
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncJobs}
+            disabled={syncing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Jobs'}
+          </Button>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+            Auto-refresh · 30s
+          </div>
         </div>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
