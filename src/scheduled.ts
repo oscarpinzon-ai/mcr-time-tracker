@@ -69,7 +69,7 @@ export async function syncHcpJobsScheduled() {
 
       const mappedJob = {
         hcp_job_id: job.id,
-        job_number: job.job_number || '',
+        job_number: job.invoice_number || '',
         customer_name: getCustomerName(job),
         job_type: getJobType(job),
         job_address: getJobAddress(job),

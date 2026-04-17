@@ -1,12 +1,13 @@
 // HouseCall Pro API client for server-side use only
-const HCP_BASE_URL = 'https://api.housecallpro.com/pro/v1';
+const HCP_BASE_URL = 'https://api.housecallpro.com';
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 
 interface HcpJobResponse {
   id: string;
-  job_number: string;
-  customer?: { name?: string; first_name?: string; last_name?: string };
+  invoice_number?: string;
+  description?: string;
+  customer?: { company_name?: string; first_name?: string; last_name?: string };
   address?: {
     street?: string;
     city?: string;
@@ -17,7 +18,7 @@ interface HcpJobResponse {
   tags?: string[];
   work_status?: string;
   schedule?: { scheduled_start?: string };
-  dispatched_employees?: Array<{ id: string }>;
+  assigned_employees?: Array<{ id?: string; first_name?: string; last_name?: string }>;
   [key: string]: unknown;
 }
 
@@ -29,9 +30,21 @@ interface HcpEmployeeResponse {
   [key: string]: unknown;
 }
 
-interface HcpListResponse<T> {
-  data: T[];
-  pagination?: { page: number; per_page: number };
+interface HcpJobsListResponse {
+  jobs?: HcpJobResponse[];
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
+  total_items?: number;
+  [key: string]: unknown;
+}
+
+interface HcpEmployeesListResponse {
+  employees?: HcpEmployeeResponse[];
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
+  total_items?: number;
   [key: string]: unknown;
 }
 
@@ -88,17 +101,19 @@ export async function fetchHcpJobs(
   while (true) {
     const pageParams = new URLSearchParams(params);
     pageParams.append('page', page.toString());
-    pageParams.append('per_page', perPage.toString());
+    pageParams.append('page_size', perPage.toString());
     const pageUrl = `${HCP_BASE_URL}/jobs?${pageParams.toString()}`;
 
     const response = await fetchWithRetry(pageUrl, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
 
-    const data = (await response.json()) as HcpListResponse<HcpJobResponse>;
-    allJobs.push(...data.data);
+    const data = (await response.json()) as HcpJobsListResponse;
+    if (data.jobs?.length) {
+      allJobs.push(...data.jobs);
+    }
 
-    if (!data.pagination || data.data.length < perPage) break;
+    if (!data.total_pages || !data.jobs || data.jobs.length < perPage) break;
     page++;
   }
 
@@ -113,17 +128,19 @@ export async function fetchHcpEmployees(apiKey: string): Promise<HcpEmployeeResp
   while (true) {
     const params = new URLSearchParams();
     params.append('page', page.toString());
-    params.append('per_page', perPage.toString());
+    params.append('page_size', perPage.toString());
     const url = `${HCP_BASE_URL}/employees?${params.toString()}`;
 
     const response = await fetchWithRetry(url, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
 
-    const data = (await response.json()) as HcpListResponse<HcpEmployeeResponse>;
-    allEmployees.push(...data.data);
+    const data = (await response.json()) as HcpEmployeesListResponse;
+    if (data.employees?.length) {
+      allEmployees.push(...data.employees);
+    }
 
-    if (!data.pagination || data.data.length < perPage) break;
+    if (!data.total_pages || !data.employees || data.employees.length < perPage) break;
     page++;
   }
 
@@ -131,10 +148,11 @@ export async function fetchHcpEmployees(apiKey: string): Promise<HcpEmployeeResp
 }
 
 export function getCustomerName(job: HcpJobResponse): string | null {
-  if (job.customer?.name) return job.customer.name;
+  if (job.customer?.company_name) return job.customer.company_name;
   if (job.customer?.first_name || job.customer?.last_name) {
     return `${job.customer.first_name || ''} ${job.customer.last_name || ''}`.trim();
   }
+  if (job.description) return job.description;
   return null;
 }
 
@@ -162,7 +180,7 @@ export function getScheduledDate(job: HcpJobResponse): string | null {
 }
 
 export function getAssignedEmployeeIds(job: HcpJobResponse): string[] {
-  return job.dispatched_employees?.map(emp => emp.id) || [];
+  return job.assigned_employees?.map(emp => emp.id).filter(Boolean) as string[] || [];
 }
 
 export function getEmployeeName(emp: HcpEmployeeResponse): string {
