@@ -3,21 +3,15 @@
  * Runs every 3 minutes and at midnight Mon-Sat for HCP sync and auto clock-out.
  */
 
-import { syncHcpJobs, autoClockOut } from '@/lib/hcp.functions';
+import type { ScheduledEvent } from '@cloudflare/workers-types';
+import { performHcpJobSync, performAutoClockOut } from '@/lib/hcp.server';
 
-export async function handleScheduled(
-  event: ScheduledEvent,
-  env: unknown,
-  ctx: ExecutionContext,
-) {
+export async function handleScheduled(event: ScheduledEvent) {
   console.log('[Cron] Scheduled event triggered');
 
   try {
     // Every 3 minutes: sync jobs for today and nearby dates
-    const syncResult = await syncHcpJobs({
-      startDate: undefined, // Will use default range (today ± 7 days)
-      endDate: undefined,
-    });
+    const syncResult = await performHcpJobSync();
 
     if (syncResult.ok) {
       console.log(`[Cron] Synced ${syncResult.upserted} jobs`);
@@ -29,9 +23,9 @@ export async function handleScheduled(
     const now = new Date();
     const hour = now.getUTCHours();
 
-    // Midnight is 6 AM UTC (12 AM CDT = 6 AM UTC)
+    // Midnight is 6 AM UTC (12 AM CDT = 12 AM UTC)
     if (hour === 6) {
-      const clockOutResult = await autoClockOut();
+      const clockOutResult = await performAutoClockOut();
 
       if (clockOutResult.ok) {
         console.log(`[Cron] Auto clocked out ${clockOutResult.clockedOut} entries`);
