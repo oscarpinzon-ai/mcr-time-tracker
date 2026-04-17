@@ -34,6 +34,10 @@ export const Route = createRootRoute({
       { name: "description", content: "Technician time tracking for Modern Compactor Repair." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { property: "og:title", content: "MCR Tech Performance Tool" },
+      { name: "twitter:title", content: "MCR Tech Performance Tool" },
+      { property: "og:description", content: "Technician time tracking for Modern Compactor Repair." },
+      { name: "twitter:description", content: "Technician time tracking for Modern Compactor Repair." },
     ],
     links: [
       {
