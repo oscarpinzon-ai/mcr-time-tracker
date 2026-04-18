@@ -102,7 +102,7 @@ export function ReportsTab() {
           tech: r.tech,
           jobs: r.jobs,
           minutes: r.minutes,
-          utilization: (r.minutes / 60 / 13) * 100,
+          utilization: (r.minutes / 60 / AVAILABLE_HOURS_PER_DAY) * 100,
         })),
       });
       toast.success('PDF exported successfully');
@@ -130,7 +130,7 @@ export function ReportsTab() {
           tech: r.tech,
           jobs: r.jobs,
           minutes: r.minutes,
-          utilization: (r.minutes / 60 / 13) * 100,
+          utilization: (r.minutes / 60 / AVAILABLE_HOURS_PER_DAY) * 100,
         })),
       });
       toast.success('Excel exported successfully');
