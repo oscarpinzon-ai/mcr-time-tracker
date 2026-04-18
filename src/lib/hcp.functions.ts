@@ -113,3 +113,29 @@ export const autoClockOut = createServerFn({ method: "POST" }).handler(
     return performAutoClockOut();
   },
 );
+
+/** Update the job_type for a row in hcp_jobs_cache. Uses service role on the server. */
+export const updateJobType = createServerFn({ method: "POST" })
+  .inputValidator((input: { jobId: string; jobType: string }) => input)
+  .handler(
+    async ({
+      data,
+    }): Promise<{ ok: true } | { ok: false; error: string }> => {
+      try {
+        const supabase = getServerSupabase();
+        const { error } = await supabase
+          .from("hcp_jobs_cache")
+          .update({ job_type: data.jobType })
+          .eq("id", data.jobId);
+        if (error) {
+          console.error("[updateJobType] DB error:", error);
+          return { ok: false, error: error.message };
+        }
+        return { ok: true };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[updateJobType] Exception:", msg);
+        return { ok: false, error: msg };
+      }
+    },
+  );
