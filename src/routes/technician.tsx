@@ -17,6 +17,7 @@ import { ArrowLeft, MapPin, Pause, Play, Square, User2, Loader2 } from "lucide-r
 import { toast } from "sonner";
 import { formatDuration, pausedSeconds, totalPauseMinutes, workedSeconds } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { updateJobType } from "@/lib/hcp.functions";
 
 export const Route = createFileRoute("/technician")({
   head: () => ({
@@ -453,18 +454,17 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
                     key={type}
                     onClick={async () => {
                       try {
-                        const res = await fetch("/api/update-job-type", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ jobId: job.id, jobType: type }),
+                        const result = await updateJobType({
+                          data: { jobId: job.id, jobType: type },
                         });
-                        if (!res.ok) {
-                          toast.error("Failed to update job type");
+                        if (!result.ok) {
+                          toast.error(`Failed to update job type: ${result.error}`);
                           return;
                         }
                         await refresh();
                       } catch (e) {
-                        toast.error("Failed to update job type");
+                        const msg = e instanceof Error ? e.message : String(e);
+                        toast.error(`Failed to update job type: ${msg}`);
                       }
                     }}
                     className={cn(
