@@ -114,7 +114,7 @@ export const autoClockOut = createServerFn({ method: "POST" }).handler(
   },
 );
 
-/** Update the job_type for a row in hcp_jobs_cache. Uses service role on the server. */
+/** Update job_type for a row in hcp_jobs_cache. */
 export const updateJobType = createServerFn({ method: "POST" })
   .inputValidator((input: { jobId: string; jobType: string }) => input)
   .handler(

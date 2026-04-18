@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Employee, HcpJob, PauseLog, TimeEntry } from "@/lib/types";
 import { JOB_TYPES } from "@/lib/types";
+import { updateJobType } from "@/lib/hcp.functions";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -17,7 +18,6 @@ import { ArrowLeft, MapPin, Pause, Play, Square, User2, Loader2 } from "lucide-r
 import { toast } from "sonner";
 import { formatDuration, pausedSeconds, totalPauseMinutes, workedSeconds } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { updateJobType } from "@/lib/hcp.functions";
 
 export const Route = createFileRoute("/technician")({
   head: () => ({
