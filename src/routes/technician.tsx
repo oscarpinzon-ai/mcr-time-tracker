@@ -88,10 +88,12 @@ function TechnicianPage() {
           {confirmedEmployee ? (
             <button
               onClick={handleSwitch}
-              className="flex items-center gap-1.5 text-xs font-semibold uppercase text-accent hover:text-accent/80"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-xs font-semibold uppercase text-accent transition-colors"
+              title="Click to change technician"
             >
-              <User2 className="w-3.5 h-3.5" />
-              {confirmedEmployee.name.split(" ")[0]}
+              <User2 className="w-4 h-4" />
+              <span>{confirmedEmployee.name.split(" ")[0]}</span>
+              <span className="text-[10px] text-accent/70">Change</span>
             </button>
           ) : (
             <span className="w-12" />
