@@ -45,13 +45,16 @@ function TechnicianPage() {
         .order("name");
       if (error) {
         toast.error("Failed to load technicians");
-      } else {
-        setEmployees((data ?? []) as Employee[]);
       }
+      const list = (data ?? []) as Employee[];
+      setEmployees(list);
       const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-      if (stored) {
+      if (stored && list.some((e) => e.id === stored)) {
         setSelectedId(stored);
         setConfirmedId(stored);
+      } else if (stored) {
+        // Stale ID (employee deleted/inactive) — clear it so the picker shows
+        localStorage.removeItem(STORAGE_KEY);
       }
       setLoading(false);
     })();
