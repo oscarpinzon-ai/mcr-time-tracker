@@ -150,6 +150,9 @@ export function ReportsTab() {
       await new Promise((r) => setTimeout(r, 100));
       exportToPDF({
         dateRange: { from, to },
+        crewUtilization,
+        activeTechs,
+        jobsCompleted: filteredEntries.length,
         totalToday: fmtDuration(
           filteredEntries
             .filter(
@@ -165,6 +168,7 @@ export function ReportsTab() {
         hoursByTech: byTech.map((t) => ({
           name: t.name,
           hours: +(t.minutes / 60).toFixed(2),
+          utilization: t.utilization,
         })),
         hoursByType: byJobType.map((j) => ({
           name: j.label,
@@ -194,6 +198,9 @@ export function ReportsTab() {
       await new Promise((r) => setTimeout(r, 100));
       exportToExcel({
         dateRange: { from, to },
+        crewUtilization,
+        activeTechs,
+        jobsCompleted: filteredEntries.length,
         totalToday: fmtDuration(
           filteredEntries
             .filter(
@@ -209,6 +216,7 @@ export function ReportsTab() {
         hoursByTech: byTech.map((t) => ({
           name: t.name,
           hours: +(t.minutes / 60).toFixed(2),
+          utilization: t.utilization,
         })),
         hoursByType: byJobType.map((j) => ({
           name: j.label,
