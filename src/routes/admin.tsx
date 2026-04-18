@@ -56,7 +56,7 @@ function AdminPage() {
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
-        <Tabs defaultValue="live">
+        <Tabs defaultValue="reports">
           <TabsList className="bg-card border border-border h-auto p-1 mb-5 w-full sm:w-auto grid grid-cols-2 sm:flex">
             <TabsTrigger value="live" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground gap-1.5 px-4 py-2 font-semibold">
               <Activity className="w-4 h-4" /> Live View
