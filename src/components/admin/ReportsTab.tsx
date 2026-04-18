@@ -32,7 +32,7 @@ import { toast } from "sonner";
 
 type EntryWithPauses = { entry: TimeEntry; pauses: PauseLog[] };
 
-const AVAILABLE_HOURS_PER_DAY = 13; // 6AM-7PM
+const AVAILABLE_HOURS_PER_DAY = 8; // 8-hour workday
 
 export function ReportsTab() {
   const [from, setFrom] = useState(() => {
