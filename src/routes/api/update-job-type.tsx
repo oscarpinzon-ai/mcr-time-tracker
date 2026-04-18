@@ -1,11 +1,11 @@
 import { createAPIFileRoute } from "@tanstack/start";
-import { supabase } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const APIRoute = createAPIFileRoute("/api/update-job-type")({
   POST: async ({ request }) => {
     const { jobId, jobType } = (await request.json()) as { jobId: string; jobType: string };
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("hcp_jobs_cache")
       .update({ job_type: jobType })
       .eq("id", jobId);
