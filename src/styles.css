@@ -101,11 +101,11 @@
   --warning: oklch(0.79 0.17 85);
   --warning-foreground: oklch(0.18 0 0);
 
-  --border: oklch(0.89 0.004 90);
-  --input: oklch(0.89 0.004 90);
-  --ring: oklch(0.78 0.16 70);
+  --border: oklch(0.9 0.003 260);
+  --input: oklch(0.9 0.003 260);
+  --ring: oklch(0.27 0.08 260);
 
-  --chart-1: oklch(0.78 0.16 70);   /* MCR yellow */
+  --chart-1: oklch(0.27 0.08 260);   /* navy blue */
   --chart-2: oklch(0.18 0 0);        /* black */
   --chart-3: oklch(0.55 0.005 270); /* steel */
   --chart-4: oklch(0.72 0.18 145);  /* success green */
