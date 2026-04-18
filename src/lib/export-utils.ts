@@ -57,7 +57,7 @@ export function exportToPDF(data: ExportData) {
     body: summaryData.slice(1),
     margin: { left: margin, right: margin },
     theme: 'grid',
-    headStyles: { fillColor: [245, 166, 35], textColor: 26 },
+    headStyles: { fillColor: [11, 36, 71], textColor: 255 },
     bodyStyles: { textColor: 26 },
     footStyles: { textColor: 26 },
   });
@@ -80,7 +80,7 @@ export function exportToPDF(data: ExportData) {
     body: techData.slice(1),
     margin: { left: margin, right: margin },
     theme: 'grid',
-    headStyles: { fillColor: [245, 166, 35], textColor: 26 },
+    headStyles: { fillColor: [11, 36, 71], textColor: 255 },
   });
 
   yPosition = (pdf as any).lastAutoTable.finalY + 10;
@@ -101,7 +101,7 @@ export function exportToPDF(data: ExportData) {
     body: typeData.slice(1),
     margin: { left: margin, right: margin },
     theme: 'grid',
-    headStyles: { fillColor: [245, 166, 35], textColor: 26 },
+    headStyles: { fillColor: [11, 36, 71], textColor: 255 },
   });
 
   yPosition = (pdf as any).lastAutoTable.finalY + 10;
@@ -133,7 +133,7 @@ export function exportToPDF(data: ExportData) {
     body: dailyData.slice(1),
     margin: { left: margin, right: margin },
     theme: 'grid',
-    headStyles: { fillColor: [245, 166, 35], textColor: 26 },
+    headStyles: { fillColor: [11, 36, 71], textColor: 255 },
   });
 
   // Footer
