@@ -45,7 +45,7 @@ function Index() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-5">
-            <Link to="/technician?fresh=1" className="group">
+            <Link to="/technician" className="group">
               <div className="bg-card rounded-xl border border-border p-8 shadow-card hover:shadow-card-lg hover:border-accent transition-all h-full flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-xl bg-accent/15 flex items-center justify-center mb-4 group-hover:bg-accent/25 transition-colors">
                   <HardHat className="w-8 h-8 text-accent" strokeWidth={2.2} />

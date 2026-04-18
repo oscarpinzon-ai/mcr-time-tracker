@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Employee, HcpJob, PauseLog, TimeEntry } from "@/lib/types";
@@ -25,18 +25,18 @@ export const Route = createFileRoute("/technician")({
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({
-    fresh: (search.fresh as string | undefined) === "1",
+    id: (search.id as string | undefined) ?? null,
   }),
   component: TechnicianPage,
 });
 
-const STORAGE_KEY = "mcr.selectedTechnicianId";
-
 function TechnicianPage() {
-  const { fresh } = useSearch({ from: "/technician" });
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const confirmedId = search.id;
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [confirmedId, setConfirmedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,20 +52,9 @@ function TechnicianPage() {
       }
       const list = (data ?? []) as Employee[];
       setEmployees(list);
-      // Only restore from localStorage if not coming fresh from home page
-      if (!fresh) {
-        const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-        if (stored && list.some((e) => e.id === stored)) {
-          setSelectedId(stored);
-          setConfirmedId(stored);
-        } else if (stored) {
-          // Stale ID (employee deleted/inactive) — clear it so the picker shows
-          localStorage.removeItem(STORAGE_KEY);
-        }
-      }
       setLoading(false);
     })();
-  }, [fresh]);
+  }, []);
 
   const confirmedEmployee = useMemo(
     () => employees.find((e) => e.id === confirmedId) ?? null,
@@ -74,13 +63,13 @@ function TechnicianPage() {
 
   function handleContinue() {
     if (!selectedId) return;
-    localStorage.setItem(STORAGE_KEY, selectedId);
-    setConfirmedId(selectedId);
+    navigate({ to: "/technician", search: { id: selectedId } });
+    setSelectedId(null);
   }
 
   function handleSwitch() {
-    localStorage.removeItem(STORAGE_KEY);
-    setConfirmedId(null);
+    navigate({ to: "/technician", search: {} });
+    setSelectedId(null);
   }
 
   return (
@@ -304,69 +293,90 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
     if (!activeEntry) return;
     setBusy(true);
     const now = new Date().toISOString();
-    const [{ error: pErr }, { error: eErr }] = await Promise.all([
-      supabase.from("pause_logs").insert({ time_entry_id: activeEntry.id, pause_start: now }),
-      supabase.from("time_entries").update({ status: "paused" }).eq("id", activeEntry.id),
-    ]);
-    setBusy(false);
-    if (pErr || eErr) {
-      toast.error(`Failed to pause: ${(pErr ?? eErr)?.message}`);
-      return;
+    if (activeEntry.status === "active") {
+      const { error } = await supabase.from("pause_logs").insert({
+        time_entry_id: activeEntry.id,
+        pause_start: now,
+      });
+      if (error) {
+        toast.error(`Failed to pause: ${error.message}`);
+        setBusy(false);
+        return;
+      }
+      const { error: updateError } = await supabase
+        .from("time_entries")
+        .update({ status: "paused" })
+        .eq("id", activeEntry.id);
+      if (updateError) {
+        toast.error(`Failed to update: ${updateError.message}`);
+        setBusy(false);
+        return;
+      }
+      toast.success("Paused");
+    } else if (activeEntry.status === "paused") {
+      const latestPause = pauses[pauses.length - 1];
+      if (latestPause && !latestPause.pause_end) {
+        const { error } = await supabase
+          .from("pause_logs")
+          .update({ pause_end: now })
+          .eq("id", latestPause.id);
+        if (error) {
+          toast.error(`Failed to resume: ${error.message}`);
+          setBusy(false);
+          return;
+        }
+      }
+      const { error: updateError } = await supabase
+        .from("time_entries")
+        .update({ status: "active" })
+        .eq("id", activeEntry.id);
+      if (updateError) {
+        toast.error(`Failed to update: ${updateError.message}`);
+        setBusy(false);
+        return;
+      }
+      toast.success("Resumed");
     }
-    toast.message("Paused");
+    setBusy(false);
     await refresh();
   }
 
-  async function handleResume() {
-    if (!activeEntry) return;
-    const open = pauses.find((p) => !p.pause_end);
-    if (!open) return;
-    setBusy(true);
-    const now = new Date().toISOString();
-    const [{ error: pErr }, { error: eErr }] = await Promise.all([
-      supabase.from("pause_logs").update({ pause_end: now }).eq("id", open.id),
-      supabase.from("time_entries").update({ status: "active" }).eq("id", activeEntry.id),
-    ]);
-    setBusy(false);
-    if (pErr || eErr) {
-      toast.error(`Failed to resume: ${(pErr ?? eErr)?.message}`);
-      return;
-    }
-    toast.success("Resumed");
-    await refresh();
-  }
-
-  async function handleStop() {
+  async function handleFinish() {
     if (!activeEntry) return;
     setBusy(true);
     const now = new Date().toISOString();
-    // Close any open pause
-    const open = pauses.find((p) => !p.pause_end);
-    if (open) {
-      await supabase.from("pause_logs").update({ pause_end: now }).eq("id", open.id);
-    }
-    const refreshedPauses = open
-      ? pauses.map((p) => (p.id === open.id ? { ...p, pause_end: now } : p))
-      : pauses;
+    let totalMinutes = Math.round((new Date(now).getTime() - new Date(activeEntry.clock_in).getTime()) / 1000 / 60);
+    const pausedMs = pauses.reduce((sum, p) => {
+      const end = p.pause_end ?? now;
+      return sum + (new Date(end).getTime() - new Date(p.pause_start).getTime());
+    }, 0);
+    totalMinutes -= Math.round(pausedMs / 1000 / 60);
 
-    const finalEntry = { ...activeEntry, clock_out: now };
-    const totalSec = workedSeconds(finalEntry, refreshedPauses, new Date(now).getTime());
-    const totalMin = Math.round(totalSec / 60);
+    const closePausesUpdate = pauses
+      .filter((p) => !p.pause_end)
+      .map((p) =>
+        supabase
+          .from("pause_logs")
+          .update({ pause_end: now })
+          .eq("id", p.id)
+      );
+
+    await Promise.all(closePausesUpdate);
 
     const { error } = await supabase
       .from("time_entries")
       .update({
         clock_out: now,
         status: "completed",
-        total_minutes: totalMin,
+        total_minutes: totalMinutes,
       })
       .eq("id", activeEntry.id);
     setBusy(false);
     if (error) {
-      toast.error(`Failed to stop: ${error.message}`);
+      toast.error(`Failed to finish: ${error.message}`);
       return;
     }
-    toast.success(`Job complete · ${Math.floor(totalMin / 60)}h ${totalMin % 60}m logged`);
+    toast.success("Clocked out");
     await refresh();
   }
 
@@ -378,352 +388,75 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
     );
   }
 
-  // Sort: active job first, then the rest
-  const orderedJobs = [...jobs].sort((a, b) => {
-    const aActive = activeEntry?.hcp_job_id === a.hcp_job_id ? 1 : 0;
-    const bActive = activeEntry?.hcp_job_id === b.hcp_job_id ? 1 : 0;
-    return bActive - aActive;
-  });
-
-  // Include the active entry as a synthetic "job" if it isn't in today's list
-  const hasActiveInList =
-    !activeEntry || jobs.some((j) => j.hcp_job_id === activeEntry.hcp_job_id);
-
-  const selectedDateObj = new Date(selectedDate);
-  const today = (() => {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Chicago',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const parts = formatter.formatToParts(now);
-    const year = parts.find(p => p.type === 'year')?.value || '';
-    const month = parts.find(p => p.type === 'month')?.value || '';
-    const day = parts.find(p => p.type === 'day')?.value || '';
-    return `${year}-${month}-${day}`;
-  })();
-  const isToday = selectedDate === today;
-
-  function handlePrevDay() {
-    const prev = new Date(selectedDateObj);
-    prev.setDate(prev.getDate() - 1);
-    setSelectedDate(prev.toISOString().slice(0, 10));
-  }
-
-  function handleNextDay() {
-    const next = new Date(selectedDateObj);
-    next.setDate(next.getDate() + 1);
-    setSelectedDate(next.toISOString().slice(0, 10));
-  }
-
-  function handleToday() {
-    setSelectedDate(today);
-  }
-
   return (
-    <div>
-      <div className="mb-5">
-        <p className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">
-          {isToday ? "Today" : "Selected Date"} · {selectedDateObj.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
-        </p>
-        <h1 className="text-3xl font-bold uppercase tracking-tight">
-          {employee.name}'s Jobs
-        </h1>
-      </div>
-
-      {/* Date Picker */}
-      <div className="bg-card border border-border rounded-lg p-4 mb-5 shadow-card">
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={handlePrevDay}
-            className="flex-1 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-sm transition-colors"
-          >
-            ← Prev
-          </button>
-          <div className="flex-1">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-center font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-          </div>
-          <button
-            onClick={handleNextDay}
-            className="flex-1 px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-sm transition-colors"
-          >
-            Next →
-          </button>
-        </div>
-        {!isToday && (
-          <button
-            onClick={handleToday}
-            className="w-full px-3 py-2 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-semibold text-sm transition-colors"
-          >
-            Back to Today
-          </button>
-        )}
-      </div>
-
-      {!hasActiveInList && activeEntry && (
-        <ActiveEntryCard
-          entry={activeEntry}
-          pauses={pauses}
-          tick={tick}
-          busy={busy}
-          onPause={handlePause}
-          onResume={handleResume}
-          onStop={handleStop}
-          standalone
-        />
-      )}
-
-      <div className="space-y-3">
-        {orderedJobs.map((job) => {
-          const isActiveJob = activeEntry?.hcp_job_id === job.hcp_job_id;
-          return (
-            <JobCard
-              key={job.id}
-              job={job}
-              activeEntry={isActiveJob ? activeEntry : null}
-              pauses={isActiveJob ? pauses : []}
-              tick={tick}
-              busy={busy}
-              hasOtherActive={activeEntry?.status === "active" && !isActiveJob}
-              onStart={() => handleStart(job)}
-              onPause={handlePause}
-              onResume={handleResume}
-              onStop={handleStop}
-            />
-          );
-        })}
-        {orderedJobs.length === 0 && !activeEntry && (
-          <div className="text-center py-16 border-2 border-dashed border-border rounded-lg bg-card">
-            <p className="text-muted-foreground font-medium">No jobs assigned for {isToday ? "today" : "this date"}.</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isToday ? "Check back later or contact dispatch." : "Try a different date or contact dispatch."}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ActiveEntryCard({
-  entry,
-  pauses,
-  tick,
-  busy,
-  onPause,
-  onResume,
-  onStop,
-  standalone,
-}: {
-  entry: TimeEntry;
-  pauses: PauseLog[];
-  tick: number;
-  busy: boolean;
-  onPause: () => void;
-  onResume: () => void;
-  onStop: () => void;
-  standalone?: boolean;
-}) {
-  // tick is used to force re-renders for the live timer
-  void tick;
-  const isPaused = entry.status === "paused";
-  const worked = workedSeconds(entry, pauses);
-  const pauseDur = isPaused ? pausedSeconds(pauses) : 0;
-
-  return (
-    <div
-      className={cn(
-        "rounded-xl border-2 p-5 mb-4 shadow-card-lg",
-        isPaused ? "border-warning bg-warning/5" : "border-success bg-success/5",
-        standalone && "ring-2 ring-offset-2 ring-accent/30"
-      )}
-    >
-      <div className="flex items-center justify-between mb-3">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold uppercase tracking-tight mb-2">{employee.name}'s Jobs</h1>
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "inline-flex w-2.5 h-2.5 rounded-full",
-              isPaused ? "bg-warning" : "bg-success animate-pulse"
-            )}
+          <label className="text-sm font-semibold text-muted-foreground">Date:</label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-2 py-1 border border-border rounded text-sm"
           />
-          <span className="text-xs uppercase font-bold tracking-widest">
-            {isPaused ? "Paused" : "Working"}
-          </span>
         </div>
-        <span className="text-xs text-muted-foreground">Job #{entry.job_number}</span>
-      </div>
-      <div className="text-center py-2">
-        <div className="text-5xl font-bold font-display tabular-nums tracking-tight">
-          {formatDuration(worked)}
-        </div>
-        {isPaused && (
-          <div className="text-warning font-semibold mt-1 text-sm">
-            Paused for {formatDuration(pauseDur)}
-          </div>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-2 mt-3">
-        {isPaused ? (
-          <Button
-            disabled={busy}
-            onClick={onResume}
-            className="h-14 text-base font-bold uppercase bg-success hover:bg-success/90 text-success-foreground"
-          >
-            <Play className="w-5 h-5 mr-1" /> Resume
-          </Button>
-        ) : (
-          <Button
-            disabled={busy}
-            onClick={onPause}
-            className="h-14 text-base font-bold uppercase bg-warning hover:bg-warning/90 text-warning-foreground"
-          >
-            <Pause className="w-5 h-5 mr-1" /> Pause
-          </Button>
-        )}
-        <Button
-          disabled={busy}
-          onClick={onStop}
-          className="h-14 text-base font-bold uppercase bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-        >
-          <Square className="w-5 h-5 mr-1" /> Stop
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function JobCard({
-  job,
-  activeEntry,
-  pauses,
-  tick,
-  busy,
-  hasOtherActive,
-  onStart,
-  onPause,
-  onResume,
-  onStop,
-}: {
-  job: HcpJob;
-  activeEntry: TimeEntry | null;
-  pauses: PauseLog[];
-  tick: number;
-  busy: boolean;
-  hasOtherActive: boolean;
-  onStart: () => void;
-  onPause: () => void;
-  onResume: () => void;
-  onStop: () => void;
-}) {
-  void tick;
-  const isActive = !!activeEntry;
-  const isPaused = activeEntry?.status === "paused";
-  const worked = activeEntry ? workedSeconds(activeEntry, pauses) : 0;
-  const pauseDur = isPaused ? pausedSeconds(pauses) : 0;
-
-  return (
-    <div
-      className={cn(
-        "rounded-xl border-2 bg-card shadow-card transition-all",
-        isActive
-          ? isPaused
-            ? "border-warning"
-            : "border-success"
-          : "border-border"
-      )}
-    >
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div>
-            <div className="text-3xl font-bold font-display leading-none">
-              #{job.job_number}
-            </div>
-            <div className="font-semibold mt-1.5 text-foreground">{job.customer_name}</div>
-          </div>
-          <JobTypeBadge type={job.job_type} />
-        </div>
-        {job.job_address && (
-          <div className="flex items-start gap-1.5 text-sm text-muted-foreground mt-2">
-            <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>{job.job_address}</span>
-          </div>
-        )}
       </div>
 
-      {isActive && activeEntry ? (
-        <div className={cn("border-t-2 px-4 py-3", isPaused ? "border-warning bg-warning/5" : "border-success bg-success/5")}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "inline-flex w-2.5 h-2.5 rounded-full",
-                  isPaused ? "bg-warning" : "bg-success animate-pulse"
+      {activeEntry && (
+        <div className="bg-accent/10 border-l-4 border-accent p-4 rounded">
+          <div className="font-bold uppercase text-accent mb-2">Active Job</div>
+          <div className="text-sm space-y-1">
+            <div>Job #{activeEntry.job_number} · {activeEntry.customer_name}</div>
+            <div className="text-xs text-muted-foreground">{activeEntry.job_address}</div>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="tabular-nums font-mono">
+                {formatDuration(
+                  Math.round((tick % 60) + (new Date().getTime() - new Date(activeEntry.clock_in).getTime()) / 1000 / 60)
                 )}
-              />
-              <span className="text-xs uppercase font-bold tracking-widest">
-                {isPaused ? "Paused" : "Working"}
               </span>
+              <Button size="sm" variant="outline" onClick={handlePause} disabled={busy}>
+                {activeEntry.status === "active" ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleFinish} disabled={busy}>
+                <Square className="w-4 h-4" />
+              </Button>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold font-display tabular-nums leading-none">
-                {formatDuration(worked)}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {jobs.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
+            No jobs scheduled for today.
+          </div>
+        ) : (
+          jobs.map((job) => (
+            <button
+              key={job.id}
+              onClick={() => handleStart(job)}
+              disabled={busy || (activeEntry?.status === "active")}
+              className={cn(
+                "w-full text-left p-4 border-l-4 rounded bg-card hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                "border-accent"
+              )}
+            >
+              <div className="font-bold uppercase">{job.customer_name}</div>
+              <div className="text-xs text-muted-foreground mt-1">Job #{job.job_number}</div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                <MapPin className="w-3 h-3" />
+                {job.job_address}
               </div>
-              {isPaused && (
-                <div className="text-warning text-[11px] font-semibold mt-0.5">
-                  Paused {formatDuration(pauseDur)}
+              {job.job_type && (
+                <div className="mt-2">
+                  <JobTypeBadge type={job.job_type} />
                 </div>
               )}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {isPaused ? (
-              <Button
-                disabled={busy}
-                onClick={onResume}
-                className="h-13 py-3 text-sm font-bold uppercase bg-success hover:bg-success/90 text-success-foreground"
-              >
-                <Play className="w-4 h-4 mr-1" /> Resume
-              </Button>
-            ) : (
-              <Button
-                disabled={busy}
-                onClick={onPause}
-                className="h-13 py-3 text-sm font-bold uppercase bg-warning hover:bg-warning/90 text-warning-foreground"
-              >
-                <Pause className="w-4 h-4 mr-1" /> Pause
-              </Button>
-            )}
-            <Button
-              disabled={busy}
-              onClick={onStop}
-              className="h-13 py-3 text-sm font-bold uppercase bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-            >
-              <Square className="w-4 h-4 mr-1" /> Stop
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="border-t border-border px-4 py-3">
-          <Button
-            disabled={busy || hasOtherActive}
-            onClick={onStart}
-            className="w-full h-13 py-3 text-sm font-bold uppercase bg-success hover:bg-success/90 text-success-foreground disabled:bg-muted disabled:text-muted-foreground"
-          >
-            <Play className="w-4 h-4 mr-1" />
-            {hasOtherActive ? "Another job is active" : "Start"}
-          </Button>
-        </div>
-      )}
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }
-
-// Suppress unused warning for totalPauseMinutes (used elsewhere)
-void totalPauseMinutes;
