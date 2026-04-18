@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Employee, HcpJob, PauseLog, TimeEntry } from "@/lib/types";
+import { JOB_TYPES } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -433,27 +434,59 @@ function TechnicianDashboard({ employee }: { employee: Employee }) {
           </div>
         ) : (
           jobs.map((job) => (
-            <button
+            <div
               key={job.id}
-              onClick={() => handleStart(job)}
-              disabled={busy || (activeEntry?.status === "active")}
-              className={cn(
-                "w-full text-left p-4 border-l-4 rounded bg-card hover:bg-card/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                "border-accent"
-              )}
+              className="p-4 border-l-4 border-accent rounded bg-card space-y-3"
             >
-              <div className="font-bold uppercase">{job.customer_name}</div>
-              <div className="text-xs text-muted-foreground mt-1">Job #{job.job_number}</div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                <MapPin className="w-3 h-3" />
-                {job.job_address}
-              </div>
-              {job.job_type && (
-                <div className="mt-2">
-                  <JobTypeBadge type={job.job_type} />
+              <div className="text-left">
+                <div className="font-bold uppercase">{job.customer_name}</div>
+                <div className="text-xs text-muted-foreground mt-1">Job #{job.job_number}</div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                  <MapPin className="w-3 h-3" />
+                  {job.job_address}
                 </div>
-              )}
-            </button>
+              </div>
+
+              <div className="flex gap-1.5 flex-wrap">
+                {JOB_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/update-job-type", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ jobId: job.id, jobType: type }),
+                        });
+                        if (!res.ok) {
+                          toast.error("Failed to update job type");
+                          return;
+                        }
+                        await refresh();
+                      } catch (e) {
+                        toast.error("Failed to update job type");
+                      }
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-semibold uppercase rounded transition-colors",
+                      job.job_type === type
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-secondary text-foreground hover:bg-secondary/80"
+                    )}
+                  >
+                    {type.split(" ")[0]}
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                onClick={() => handleStart(job)}
+                disabled={busy || (activeEntry?.status === "active")}
+                className="w-full h-10 text-sm font-bold uppercase bg-accent hover:bg-accent/90 text-accent-foreground disabled:opacity-50"
+              >
+                Start Job
+              </Button>
+            </div>
           ))
         )}
       </div>

@@ -295,6 +295,7 @@ function EditDialog({
 }) {
   const [clockIn, setClockIn] = useState("");
   const [clockOut, setClockOut] = useState("");
+  const [jobType, setJobType] = useState("");
   const [editor, setEditor] = useState("Admin");
   const [saving, setSaving] = useState(false);
 
@@ -302,6 +303,7 @@ function EditDialog({
     if (row) {
       setClockIn(toLocalInput(row.entry.clock_in));
       setClockOut(toLocalInput(row.entry.clock_out));
+      setJobType(row.entry.job_type ?? "");
     }
   }, [row]);
 
@@ -310,6 +312,7 @@ function EditDialog({
     return {
       clock_in: row.entry.clock_in,
       clock_out: row.entry.clock_out,
+      job_type: row.entry.job_type,
     };
   }, [row]);
 
@@ -322,6 +325,7 @@ function EditDialog({
     const changes: { field: string; oldV: string | null; newV: string | null }[] = [];
     if (newIn !== original.clock_in) changes.push({ field: "clock_in", oldV: original.clock_in, newV: newIn });
     if (newOut !== original.clock_out) changes.push({ field: "clock_out", oldV: original.clock_out, newV: newOut });
+    if (jobType !== (original.job_type ?? "")) changes.push({ field: "job_type", oldV: original.job_type ?? null, newV: jobType || null });
 
     if (changes.length === 0) {
       toast.message("No changes");
@@ -341,7 +345,7 @@ function EditDialog({
 
     const { error } = await supabase
       .from("time_entries")
-      .update({ clock_in: newIn, clock_out: newOut, total_minutes: newTotalMin })
+      .update({ clock_in: newIn, clock_out: newOut, total_minutes: newTotalMin, job_type: jobType || null })
       .eq("id", row.entry.id);
 
     if (error) {
@@ -389,6 +393,20 @@ function EditDialog({
           <div>
             <Label>Clock Out</Label>
             <Input type="datetime-local" value={clockOut} onChange={(e) => setClockOut(e.target.value)} />
+          </div>
+          <div>
+            <Label>Job Type</Label>
+            <Select value={jobType} onValueChange={setJobType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select job type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {JOB_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Edited by</Label>
