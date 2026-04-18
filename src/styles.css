@@ -63,8 +63,8 @@
 :root {
   --radius: 0.5rem;
 
-  /* Background warm gray #F7F7F5 */
-  --background: oklch(0.974 0.003 90);
+  /* Background pure white */
+  --background: oklch(1 0 0);
   /* Foreground deep black #1A1A1A */
   --foreground: oklch(0.18 0 0);
 
@@ -74,20 +74,20 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0 0);
 
-  /* Primary = deep black */
-  --primary: oklch(0.18 0 0);
+  /* Primary = navy blue #0B2447 */
+  --primary: oklch(0.27 0.08 260);
   --primary-foreground: oklch(0.98 0 0);
 
-  /* Secondary = steel gray surface */
-  --secondary: oklch(0.93 0.003 90);
+  /* Secondary = light gray surface */
+  --secondary: oklch(0.96 0.002 260);
   --secondary-foreground: oklch(0.18 0 0);
 
-  --muted: oklch(0.95 0.003 90);
+  --muted: oklch(0.97 0.002 260);
   --muted-foreground: oklch(0.42 0.004 270);
 
-  /* Accent = MCR yellow/gold #F5A623 */
-  --accent: oklch(0.78 0.16 70);
-  --accent-foreground: oklch(0.18 0 0);
+  /* Accent = navy blue (replaces yellow) */
+  --accent: oklch(0.27 0.08 260);
+  --accent-foreground: oklch(0.98 0 0);
 
   /* Destructive #EF4444 */
   --destructive: oklch(0.637 0.237 25.5);
