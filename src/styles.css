@@ -110,6 +110,11 @@
   --chart-3: oklch(0.55 0.005 270); /* steel */
   --chart-4: oklch(0.72 0.18 145);  /* success green */
   --chart-5: oklch(0.637 0.237 25.5); /* destructive red */
+
+  /* Utilization bands (reports) */
+  --util-low: oklch(0.62 0.18 25);    /* red/brown — under target */
+  --util-mid: oklch(0.80 0.14 80);    /* yellow/gold — on target */
+  --util-high: oklch(0.62 0.16 150);  /* green — above target */
 }
 
 .dark {
