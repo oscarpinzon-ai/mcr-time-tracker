@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Employee, HcpJob, PauseLog, TimeEntry } from "@/lib/types";
@@ -24,12 +24,16 @@ export const Route = createFileRoute("/technician")({
       { name: "description", content: "Track time on your assigned compactor repair jobs." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    fresh: (search.fresh as string | undefined) === "1",
+  }),
   component: TechnicianPage,
 });
 
 const STORAGE_KEY = "mcr.selectedTechnicianId";
 
 function TechnicianPage() {
+  const { fresh } = useSearch({ from: "/technician" });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<string | null>(null);
@@ -48,17 +52,20 @@ function TechnicianPage() {
       }
       const list = (data ?? []) as Employee[];
       setEmployees(list);
-      const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-      if (stored && list.some((e) => e.id === stored)) {
-        setSelectedId(stored);
-        setConfirmedId(stored);
-      } else if (stored) {
-        // Stale ID (employee deleted/inactive) — clear it so the picker shows
-        localStorage.removeItem(STORAGE_KEY);
+      // Only restore from localStorage if not coming fresh from home page
+      if (!fresh) {
+        const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+        if (stored && list.some((e) => e.id === stored)) {
+          setSelectedId(stored);
+          setConfirmedId(stored);
+        } else if (stored) {
+          // Stale ID (employee deleted/inactive) — clear it so the picker shows
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
       setLoading(false);
     })();
-  }, []);
+  }, [fresh]);
 
   const confirmedEmployee = useMemo(
     () => employees.find((e) => e.id === confirmedId) ?? null,
