@@ -28,7 +28,7 @@ export function DayTimeline({
     "Installation / Removal": "oklch(0.45 0.10 250)",
   };
 
-  const hourTicks = [];
+  const hourTicks: number[] = [];
   for (let h = 6; h <= 20; h += 2) hourTicks.push(h);
 
   function minsOfDay(d: string): number {
