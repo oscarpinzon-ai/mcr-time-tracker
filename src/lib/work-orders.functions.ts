@@ -106,7 +106,9 @@ export const lookupHcpWorkOrder = createServerFn({ method: "POST" })
     try {
       const result = await lookup(data.type, data.number);
       if (!result) return { ok: false as const, error: `${data.type === "job" ? "Job" : "Estimate"} #${data.number} not found in HouseCall Pro.` };
-      return { ok: true as const, data: result };
+      const { raw_data: _omit, ...preview } = result;
+      void _omit;
+      return { ok: true as const, data: preview };
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : "Lookup failed" };
     }
