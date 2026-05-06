@@ -1,60 +1,86 @@
-export type Employee = {
+export type WorkOrder = {
   id: string;
-  name: string;
-  hcp_employee_id: string | null;
-  is_active: boolean;
-  role: string;
-  created_at: string;
-};
-
-export type TimeEntry = {
-  id: string;
-  employee_id: string;
-  hcp_job_id: string | null;
-  job_number: string;
+  hcp_id: string | null;
+  hcp_type: "job" | "estimate";
+  number: string;
   customer_name: string | null;
-  job_type: string | null;
-  job_address: string | null;
-  clock_in: string;
-  clock_out: string | null;
-  status: "active" | "paused" | "completed";
-  total_minutes: number | null;
-  created_at: string;
-};
-
-export type PauseLog = {
-  id: string;
-  time_entry_id: string;
-  pause_start: string;
-  pause_end: string | null;
-};
-
-export type HcpJob = {
-  id: string;
-  hcp_job_id: string;
-  job_number: string;
-  customer_name: string | null;
-  job_type: string | null;
-  job_address: string | null;
-  status: string | null;
+  address: string | null;
+  description: string | null;
+  hcp_status: string | null;
   scheduled_date: string | null;
-  assigned_employee_ids: string[] | null;
-  last_synced_at: string;
+  assigned_to: string | null;
   raw_data: unknown;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
-export type AdminEditLog = {
-  id: string;
-  time_entry_id: string;
-  edited_by: string;
-  field_changed: string;
-  old_value: string | null;
-  new_value: string | null;
-  edited_at: string;
-};
-
-export const JOB_TYPES = [
-  "Service Call / Repair",
-  "Yard Work",
-  "Installation / Removal",
+export const PART_STATUSES = [
+  "requested",
+  "sent_to_parts",
+  "pricing",
+  "quoted",
+  "approved",
+  "ordered",
+  "shipped",
+  "received",
+  "installed",
+  "backordered",
+  "cancelled",
 ] as const;
+export type PartStatus = (typeof PART_STATUSES)[number];
+
+export const PRICING_STATUSES = ["pending", "quoted", "confirmed"] as const;
+export type PricingStatus = (typeof PRICING_STATUSES)[number];
+
+export const DEPARTMENTS = ["dispatch", "parts", "other"] as const;
+export type Department = (typeof DEPARTMENTS)[number];
+
+export type Part = {
+  id: string;
+  work_order_id: string;
+  name: string;
+  description: string | null;
+  part_number: string | null;
+  quantity: number;
+  vendor: string | null;
+  unit_price: number | null;
+  total_price: number | null;
+  pricing_status: PricingStatus;
+  status: PartStatus;
+  tracking_number: string | null;
+  tracking_carrier: string | null;
+  eta: string | null;
+  requested_by: string | null;
+  ordered_at: string | null;
+  received_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PartEvent = {
+  id: string;
+  part_id: string;
+  author: string | null;
+  department: string;
+  event_type: string;
+  from_status: string | null;
+  to_status: string | null;
+  message: string | null;
+  created_at: string;
+};
+
+export const STATUS_LABELS: Record<PartStatus, string> = {
+  requested: "Requested",
+  sent_to_parts: "Sent to Parts",
+  pricing: "Getting Pricing",
+  quoted: "Quoted",
+  approved: "Approved",
+  ordered: "Ordered",
+  shipped: "Shipped",
+  received: "Received",
+  installed: "Installed",
+  backordered: "Backordered",
+  cancelled: "Cancelled",
+};
