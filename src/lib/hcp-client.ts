@@ -198,3 +198,90 @@ export function getEmployeeName(emp: HcpEmployeeResponse): string {
   if (emp.name) return emp.name;
   return `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || `Employee ${emp.id}`;
 }
+
+export interface HcpEstimateResponse {
+  id: string;
+  estimate_number?: string;
+  number?: string;
+  message?: string;
+  customer?: { company_name?: string; first_name?: string; last_name?: string };
+  address?: { street?: string; city?: string; state?: string; zip?: string };
+  work_status?: string;
+  status?: string;
+  schedule?: { scheduled_start?: string };
+  assigned_employees?: Array<{ id?: string; first_name?: string; last_name?: string }>;
+  [key: string]: unknown;
+}
+
+interface HcpEstimatesListResponse {
+  estimates?: HcpEstimateResponse[];
+  total_pages?: number;
+  [key: string]: unknown;
+}
+
+/** Look up a Job by its job_number / invoice_number. */
+export async function fetchHcpJobByNumber(
+  apiKey: string,
+  number: string,
+): Promise<HcpJobResponse | null> {
+  const trimmed = number.trim();
+  if (!trimmed) return null;
+  const params = new URLSearchParams({ q: trimmed, page: "1", page_size: "25" });
+  const res = await fetchWithRetry(`${HCP_BASE_URL}/jobs?${params}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const data = (await res.json()) as HcpJobsListResponse;
+  const jobs = data.jobs ?? [];
+  const target = trimmed.replace(/^#/, "").toLowerCase();
+  return (
+    jobs.find((j) => {
+      const candidates = [
+        (j as { invoice_number?: string }).invoice_number,
+        (j as { job_number?: string }).job_number,
+        (j as { number?: string }).number,
+      ]
+        .filter(Boolean)
+        .map((v) => String(v).replace(/^#/, "").toLowerCase());
+      return candidates.includes(target);
+    }) || jobs[0] || null
+  );
+}
+
+/** Look up an Estimate by its estimate_number. */
+export async function fetchHcpEstimateByNumber(
+  apiKey: string,
+  number: string,
+): Promise<HcpEstimateResponse | null> {
+  const trimmed = number.trim();
+  if (!trimmed) return null;
+  const params = new URLSearchParams({ q: trimmed, page: "1", page_size: "25" });
+  const res = await fetchWithRetry(`${HCP_BASE_URL}/estimates?${params}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as HcpEstimatesListResponse;
+  const estimates = data.estimates ?? [];
+  const target = trimmed.replace(/^#/, "").toLowerCase();
+  return (
+    estimates.find((e) => {
+      const candidates = [e.estimate_number, e.number]
+        .filter(Boolean)
+        .map((v) => String(v).replace(/^#/, "").toLowerCase());
+      return candidates.includes(target);
+    }) || estimates[0] || null
+  );
+}
+
+export function getEstimateAddress(e: HcpEstimateResponse): string | null {
+  const a = e.address;
+  if (!a) return null;
+  return [a.street, a.city, a.state, a.zip].filter(Boolean).join(", ") || null;
+}
+
+export function getEstimateCustomer(e: HcpEstimateResponse): string | null {
+  if (e.customer?.company_name) return e.customer.company_name;
+  if (e.customer?.first_name || e.customer?.last_name) {
+    return `${e.customer.first_name || ""} ${e.customer.last_name || ""}`.trim();
+  }
+  return null;
+}

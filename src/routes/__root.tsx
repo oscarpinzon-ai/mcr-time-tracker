@@ -30,14 +30,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MCR Tech Performance Tool" },
-      { name: "description", content: "Technician time tracking for Modern Compactor Repair." },
+      { title: "MCR Parts Tracker" },
+      { name: "description", content: "Parts tracking dashboard for HouseCall Pro Jobs and Estimates." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { property: "og:title", content: "MCR Tech Performance Tool" },
-      { name: "twitter:title", content: "MCR Tech Performance Tool" },
-      { property: "og:description", content: "Technician time tracking for Modern Compactor Repair." },
-      { name: "twitter:description", content: "Technician time tracking for Modern Compactor Repair." },
+      { property: "og:title", content: "MCR Parts Tracker" },
+      { name: "twitter:title", content: "MCR Parts Tracker" },
+      { property: "og:description", content: "Parts tracking dashboard for HouseCall Pro Jobs and Estimates." },
+      { name: "twitter:description", content: "Parts tracking dashboard for HouseCall Pro Jobs and Estimates." },
     ],
     links: [
       {

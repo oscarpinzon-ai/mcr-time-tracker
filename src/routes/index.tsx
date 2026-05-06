@@ -1,21 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, useCallback } from "react";
 import { MCRLogo } from "@/components/MCRLogo";
-import { HardHat, LayoutDashboard } from "lucide-react";
+import { WorkOrderLookup } from "@/components/parts/WorkOrderLookup";
+import { WorkOrderTable } from "@/components/parts/WorkOrderTable";
+import { DepartmentSelector } from "@/components/parts/DepartmentSelector";
+import { Input } from "@/components/ui/input";
+import { listWorkOrders } from "@/lib/parts.functions";
+import { supabase } from "@/integrations/supabase/client";
+import type { WorkOrder, Part } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MCR Tech Performance Tool" },
+      { title: "MCR Parts Tracker" },
       {
         name: "description",
         content:
-          "Modern Compactor Repair technician time tracking — clock in, pause, and report job time from the field.",
+          "Track parts needed for HouseCall Pro Jobs and Estimates. Dispatch and Parts collaborate from request to install.",
       },
-      { property: "og:title", content: "MCR Tech Performance Tool" },
+      { property: "og:title", content: "MCR Parts Tracker" },
       {
         property: "og:description",
-        content: "Technician time tracking for Modern Compactor Repair.",
+        content: "Parts tracking dashboard for Modern Compactor Repair.",
       },
     ],
   }),
@@ -23,66 +29,63 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [search, setSearch] = useState("");
+
+  const reload = useCallback(async () => {
+    const res = await listWorkOrders();
+    setWorkOrders((res.workOrders ?? []) as unknown as WorkOrder[]);
+    setParts((res.parts ?? []) as unknown as Part[]);
+  }, []);
+
+  useEffect(() => {
+    reload();
+    const channel = supabase
+      .channel("dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "parts" }, reload)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [reload]);
+
+  const term = search.trim().toLowerCase();
+  const filtered = term
+    ? workOrders.filter(
+        (w) =>
+          w.number.toLowerCase().includes(term) ||
+          (w.customer_name ?? "").toLowerCase().includes(term) ||
+          (w.address ?? "").toLowerCase().includes(term),
+      )
+    : workOrders;
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top bar */}
-      <header className="bg-primary text-primary-foreground py-5 px-6 flex items-center justify-center border-b-4 border-accent">
-        <MCRLogo className="h-9" variant="light" />
+      <header className="bg-primary text-primary-foreground py-4 px-6 border-b-4 border-accent flex items-center justify-between gap-4 flex-wrap">
+        <Link to="/" className="flex items-center gap-3">
+          <MCRLogo className="h-8" variant="light" />
+          <span className="font-bold uppercase tracking-tight text-lg">Parts Tracker</span>
+        </Link>
+        <DepartmentSelector />
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-6 py-12 bg-background">
-        <div className="w-full max-w-3xl">
-          <div className="text-center mb-10">
-            <p className="text-accent font-semibold tracking-[0.2em] uppercase text-xs mb-3">
-              Modern Compactor Repair
-            </p>
-            <h1 className="text-5xl md:text-6xl font-bold uppercase tracking-tight text-foreground">
-              Tech Performance Tool
-            </h1>
-            <p className="mt-4 text-muted-foreground text-lg">
-              Select your role to get started.
-            </p>
+      <main className="flex-1 px-6 py-8 bg-background">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <WorkOrderLookup onImported={reload} />
+
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-bold uppercase tracking-tight">Active work orders</h2>
+            <Input
+              className="max-w-xs"
+              placeholder="Search number, customer, address…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
-            <Link to="/technician" className="group">
-              <div className="bg-card rounded-xl border border-border p-8 shadow-card hover:shadow-card-lg hover:border-accent transition-all h-full flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-xl bg-accent/15 flex items-center justify-center mb-4 group-hover:bg-accent/25 transition-colors">
-                  <HardHat className="w-8 h-8 text-accent" strokeWidth={2.2} />
-                </div>
-                <h2 className="text-2xl font-bold uppercase tracking-tight">
-                  I'm a Technician
-                </h2>
-                <p className="text-muted-foreground mt-2 text-sm">
-                  View your jobs and track time on-site.
-                </p>
-                <Button variant="default" size="lg" className="mt-6 w-full bg-primary hover:bg-primary/90 h-12 text-base font-semibold">
-                  Continue
-                </Button>
-              </div>
-            </Link>
-
-            <Link to="/admin" className="group">
-              <div className="bg-card rounded-xl border border-border p-8 shadow-card hover:shadow-card-lg hover:border-accent transition-all h-full flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/15 transition-colors">
-                  <LayoutDashboard className="w-8 h-8 text-primary" strokeWidth={2.2} />
-                </div>
-                <h2 className="text-2xl font-bold uppercase tracking-tight">
-                  I'm a Manager
-                </h2>
-                <p className="text-muted-foreground mt-2 text-sm">
-                  Live view, time entries, and reports.
-                </p>
-                <Button size="lg" className="mt-6 w-full bg-accent text-accent-foreground hover:bg-accent/90 h-12 text-base font-semibold">
-                  Open Dashboard
-                </Button>
-              </div>
-            </Link>
-          </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-10">
-            Austin, Texas · Compactor repair &amp; installation
-          </p>
+          <WorkOrderTable workOrders={filtered} parts={parts} />
         </div>
       </main>
     </div>

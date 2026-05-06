@@ -14,194 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
-      admin_edits_log: {
+      part_events: {
         Row: {
-          edited_at: string
-          edited_by: string
-          field_changed: string
+          author: string | null
+          created_at: string
+          department: string
+          event_type: string
+          from_status: string | null
           id: string
-          new_value: string | null
-          old_value: string | null
-          time_entry_id: string
+          message: string | null
+          part_id: string
+          to_status: string | null
         }
         Insert: {
-          edited_at?: string
-          edited_by: string
-          field_changed: string
+          author?: string | null
+          created_at?: string
+          department?: string
+          event_type: string
+          from_status?: string | null
           id?: string
-          new_value?: string | null
-          old_value?: string | null
-          time_entry_id: string
+          message?: string | null
+          part_id: string
+          to_status?: string | null
         }
         Update: {
-          edited_at?: string
-          edited_by?: string
-          field_changed?: string
+          author?: string | null
+          created_at?: string
+          department?: string
+          event_type?: string
+          from_status?: string | null
           id?: string
-          new_value?: string | null
-          old_value?: string | null
-          time_entry_id?: string
+          message?: string | null
+          part_id?: string
+          to_status?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "admin_edits_log_time_entry_id_fkey"
-            columns: ["time_entry_id"]
+            foreignKeyName: "part_events_part_id_fkey"
+            columns: ["part_id"]
             isOneToOne: false
-            referencedRelation: "time_entries"
+            referencedRelation: "parts"
             referencedColumns: ["id"]
           },
         ]
       }
-      employees: {
+      parts: {
         Row: {
           created_at: string
-          hcp_employee_id: string | null
+          description: string | null
+          eta: string | null
           id: string
-          is_active: boolean
           name: string
-          role: string
+          notes: string | null
+          ordered_at: string | null
+          part_number: string | null
+          pricing_status: string
+          quantity: number
+          received_at: string | null
+          requested_by: string | null
+          status: string
+          total_price: number | null
+          tracking_carrier: string | null
+          tracking_number: string | null
+          unit_price: number | null
+          updated_at: string
+          vendor: string | null
+          work_order_id: string
         }
         Insert: {
           created_at?: string
-          hcp_employee_id?: string | null
+          description?: string | null
+          eta?: string | null
           id?: string
-          is_active?: boolean
           name: string
-          role?: string
+          notes?: string | null
+          ordered_at?: string | null
+          part_number?: string | null
+          pricing_status?: string
+          quantity?: number
+          received_at?: string | null
+          requested_by?: string | null
+          status?: string
+          total_price?: number | null
+          tracking_carrier?: string | null
+          tracking_number?: string | null
+          unit_price?: number | null
+          updated_at?: string
+          vendor?: string | null
+          work_order_id: string
         }
         Update: {
           created_at?: string
-          hcp_employee_id?: string | null
+          description?: string | null
+          eta?: string | null
           id?: string
-          is_active?: boolean
           name?: string
-          role?: string
+          notes?: string | null
+          ordered_at?: string | null
+          part_number?: string | null
+          pricing_status?: string
+          quantity?: number
+          received_at?: string | null
+          requested_by?: string | null
+          status?: string
+          total_price?: number | null
+          tracking_carrier?: string | null
+          tracking_number?: string | null
+          unit_price?: number | null
+          updated_at?: string
+          vendor?: string | null
+          work_order_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "parts_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      hcp_jobs_cache: {
+      work_orders: {
         Row: {
-          assigned_employee_ids: string[] | null
+          address: string | null
+          assigned_to: string | null
+          created_at: string
           customer_name: string | null
-          hcp_job_id: string
+          description: string | null
+          hcp_id: string | null
+          hcp_status: string | null
+          hcp_type: string
           id: string
-          job_address: string | null
-          job_number: string
-          job_type: string | null
-          last_synced_at: string
+          last_synced_at: string | null
+          number: string
           raw_data: Json | null
           scheduled_date: string | null
-          status: string | null
+          updated_at: string
         }
         Insert: {
-          assigned_employee_ids?: string[] | null
+          address?: string | null
+          assigned_to?: string | null
+          created_at?: string
           customer_name?: string | null
-          hcp_job_id: string
+          description?: string | null
+          hcp_id?: string | null
+          hcp_status?: string | null
+          hcp_type: string
           id?: string
-          job_address?: string | null
-          job_number: string
-          job_type?: string | null
-          last_synced_at?: string
+          last_synced_at?: string | null
+          number: string
           raw_data?: Json | null
           scheduled_date?: string | null
-          status?: string | null
+          updated_at?: string
         }
         Update: {
-          assigned_employee_ids?: string[] | null
+          address?: string | null
+          assigned_to?: string | null
+          created_at?: string
           customer_name?: string | null
-          hcp_job_id?: string
+          description?: string | null
+          hcp_id?: string | null
+          hcp_status?: string | null
+          hcp_type?: string
           id?: string
-          job_address?: string | null
-          job_number?: string
-          job_type?: string | null
-          last_synced_at?: string
+          last_synced_at?: string | null
+          number?: string
           raw_data?: Json | null
           scheduled_date?: string | null
-          status?: string | null
+          updated_at?: string
         }
         Relationships: []
-      }
-      pause_logs: {
-        Row: {
-          id: string
-          pause_end: string | null
-          pause_start: string
-          time_entry_id: string
-        }
-        Insert: {
-          id?: string
-          pause_end?: string | null
-          pause_start: string
-          time_entry_id: string
-        }
-        Update: {
-          id?: string
-          pause_end?: string | null
-          pause_start?: string
-          time_entry_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pause_logs_time_entry_id_fkey"
-            columns: ["time_entry_id"]
-            isOneToOne: false
-            referencedRelation: "time_entries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      time_entries: {
-        Row: {
-          clock_in: string
-          clock_out: string | null
-          created_at: string
-          customer_name: string | null
-          employee_id: string
-          hcp_job_id: string | null
-          id: string
-          job_address: string | null
-          job_number: string
-          job_type: string | null
-          status: string
-          total_minutes: number | null
-        }
-        Insert: {
-          clock_in: string
-          clock_out?: string | null
-          created_at?: string
-          customer_name?: string | null
-          employee_id: string
-          hcp_job_id?: string | null
-          id?: string
-          job_address?: string | null
-          job_number: string
-          job_type?: string | null
-          status?: string
-          total_minutes?: number | null
-        }
-        Update: {
-          clock_in?: string
-          clock_out?: string | null
-          created_at?: string
-          customer_name?: string | null
-          employee_id?: string
-          hcp_job_id?: string | null
-          id?: string
-          job_address?: string | null
-          job_number?: string
-          job_type?: string | null
-          status?: string
-          total_minutes?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "time_entries_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {

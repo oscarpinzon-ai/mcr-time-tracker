@@ -9,72 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TechnicianRouteImport } from './routes/technician'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WorkOrdersIdRouteImport } from './routes/work-orders.$id'
 
-const TechnicianRoute = TechnicianRouteImport.update({
-  id: '/technician',
-  path: '/technician',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkOrdersIdRoute = WorkOrdersIdRouteImport.update({
+  id: '/work-orders/$id',
+  path: '/work-orders/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
-  '/technician': typeof TechnicianRoute
+  '/work-orders/$id': typeof WorkOrdersIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
-  '/technician': typeof TechnicianRoute
+  '/work-orders/$id': typeof WorkOrdersIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin': typeof AdminRoute
-  '/technician': typeof TechnicianRoute
+  '/work-orders/$id': typeof WorkOrdersIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/technician'
+  fullPaths: '/' | '/work-orders/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/technician'
-  id: '__root__' | '/' | '/admin' | '/technician'
+  to: '/' | '/work-orders/$id'
+  id: '__root__' | '/' | '/work-orders/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminRoute: typeof AdminRoute
-  TechnicianRoute: typeof TechnicianRoute
+  WorkOrdersIdRoute: typeof WorkOrdersIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/technician': {
-      id: '/technician'
-      path: '/technician'
-      fullPath: '/technician'
-      preLoaderRoute: typeof TechnicianRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -82,13 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/work-orders/$id': {
+      id: '/work-orders/$id'
+      path: '/work-orders/$id'
+      fullPath: '/work-orders/$id'
+      preLoaderRoute: typeof WorkOrdersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminRoute: AdminRoute,
-  TechnicianRoute: TechnicianRoute,
+  WorkOrdersIdRoute: WorkOrdersIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
