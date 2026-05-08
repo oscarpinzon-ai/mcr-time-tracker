@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
-import { Outlet, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, createRootRoute, HeadContent, Scripts, Link } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
 
@@ -71,6 +71,31 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   return (
     <>
+      {/* Global secondary nav — thin bar linking to every major section */}
+      <nav className="bg-card border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-8 flex items-center gap-5 text-xs font-medium">
+          <Link
+            to="/"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Home
+          </Link>
+          <span className="text-border select-none">·</span>
+          <Link
+            to="/admin"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Admin
+          </Link>
+          <span className="text-border select-none">·</span>
+          <Link
+            to="/revenue"
+            className="text-primary font-semibold hover:text-primary/80 transition-colors"
+          >
+            Revenue Intel
+          </Link>
+        </div>
+      </nav>
       <Outlet />
       <Toaster richColors position="top-center" />
     </>
