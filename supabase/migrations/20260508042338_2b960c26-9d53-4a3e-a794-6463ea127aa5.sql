@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS work_orders_hcp_id_key ON public.work_orders (hcp_id) WHERE hcp_id IS NOT NULL;
