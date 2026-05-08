@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { ArrowLeft, AlertTriangle, TrendingUp, CalendarDays, Loader2, AlertCircle } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { ArrowLeft, AlertTriangle, TrendingUp, CalendarDays, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { MCRLogo } from "@/components/MCRLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -122,12 +124,36 @@ function RevenueHeader() {
 function RevenuePage() {
   const [data, setData] = useState<RevenueData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     fetchRevenueData()
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  async function syncFromHcp() {
+    setSyncing(true);
+    const toastId = toast.loading("Syncing 90 days of jobs from HouseCall Pro…");
+    try {
+      const res = await fetch("/api/hcp-revenue-sync?days=90", { method: "POST" });
+      const json = await res.json() as { ok?: boolean; fetched?: number; upserted?: number; error?: string; detail?: string };
+      if (!res.ok || !json.ok) {
+        toast.error(`Sync failed: ${json.error ?? "unknown error"}`, { id: toastId });
+        return;
+      }
+      toast.success(`Synced ${json.fetched} jobs from HCP`, { id: toastId });
+      // Re-fetch dashboard data from the now-populated cache
+      setData(null);
+      loadData();
+    } catch (err) {
+      toast.error(`Network error: ${err instanceof Error ? err.message : String(err)}`, { id: toastId });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   if (error) {
     return (
@@ -176,12 +202,24 @@ function RevenuePage() {
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8">
         {/* Meta row */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          {data.cacheDaysAvailable < 30 && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-              Cache has ~{data.cacheDaysAvailable}d of history · receivables may be incomplete
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground ml-auto">
+          <div className="flex items-center gap-3 flex-wrap">
+            {data.cacheDaysAvailable < 30 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                Cache has ~{data.cacheDaysAvailable}d of history
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={syncFromHcp}
+              disabled={syncing}
+              className="h-7 text-xs gap-1.5"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing…" : "Sync 90d from HCP"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
             Data as of {asOfLabel(data.asOf)} · Source: HCP cache
           </p>
         </div>

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RevenueRouteImport } from './routes/revenue'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WorkOrdersIdRouteImport } from './routes/work-orders.$id'
+import { Route as ApiHcpRevenueSyncRouteImport } from './routes/api/hcp-revenue-sync'
 import { Route as ApiHcpDebugRouteImport } from './routes/api/hcp-debug'
 
 const RevenueRoute = RevenueRouteImport.update({
@@ -29,6 +30,11 @@ const WorkOrdersIdRoute = WorkOrdersIdRouteImport.update({
   path: '/work-orders/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHcpRevenueSyncRoute = ApiHcpRevenueSyncRouteImport.update({
+  id: '/api/hcp-revenue-sync',
+  path: '/api/hcp-revenue-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHcpDebugRoute = ApiHcpDebugRouteImport.update({
   id: '/api/hcp-debug',
   path: '/api/hcp-debug',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/revenue': typeof RevenueRoute
   '/api/hcp-debug': typeof ApiHcpDebugRoute
+  '/api/hcp-revenue-sync': typeof ApiHcpRevenueSyncRoute
   '/work-orders/$id': typeof WorkOrdersIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/revenue': typeof RevenueRoute
   '/api/hcp-debug': typeof ApiHcpDebugRoute
+  '/api/hcp-revenue-sync': typeof ApiHcpRevenueSyncRoute
   '/work-orders/$id': typeof WorkOrdersIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,38 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/revenue': typeof RevenueRoute
   '/api/hcp-debug': typeof ApiHcpDebugRoute
+  '/api/hcp-revenue-sync': typeof ApiHcpRevenueSyncRoute
   '/work-orders/$id': typeof WorkOrdersIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/revenue' | '/api/hcp-debug' | '/work-orders/$id'
+  fullPaths:
+    | '/'
+    | '/revenue'
+    | '/api/hcp-debug'
+    | '/api/hcp-revenue-sync'
+    | '/work-orders/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/revenue' | '/api/hcp-debug' | '/work-orders/$id'
-  id: '__root__' | '/' | '/revenue' | '/api/hcp-debug' | '/work-orders/$id'
+  to:
+    | '/'
+    | '/revenue'
+    | '/api/hcp-debug'
+    | '/api/hcp-revenue-sync'
+    | '/work-orders/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/revenue'
+    | '/api/hcp-debug'
+    | '/api/hcp-revenue-sync'
+    | '/work-orders/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RevenueRoute: typeof RevenueRoute
   ApiHcpDebugRoute: typeof ApiHcpDebugRoute
+  ApiHcpRevenueSyncRoute: typeof ApiHcpRevenueSyncRoute
   WorkOrdersIdRoute: typeof WorkOrdersIdRoute
 }
 
@@ -92,6 +118,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkOrdersIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hcp-revenue-sync': {
+      id: '/api/hcp-revenue-sync'
+      path: '/api/hcp-revenue-sync'
+      fullPath: '/api/hcp-revenue-sync'
+      preLoaderRoute: typeof ApiHcpRevenueSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hcp-debug': {
       id: '/api/hcp-debug'
       path: '/api/hcp-debug'
@@ -106,6 +139,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RevenueRoute: RevenueRoute,
   ApiHcpDebugRoute: ApiHcpDebugRoute,
+  ApiHcpRevenueSyncRoute: ApiHcpRevenueSyncRoute,
   WorkOrdersIdRoute: WorkOrdersIdRoute,
 }
 export const routeTree = rootRouteImport
