@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { MCRLogo } from "@/components/MCRLogo";
 import { WorkOrderLookup } from "@/components/parts/WorkOrderLookup";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { WorkOrder, Part } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
+  loader: () => { throw redirect({ to: "/revenue" }); },
   head: () => ({
     meta: [
       { title: "MCR Parts Tracker" },

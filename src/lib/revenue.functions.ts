@@ -236,7 +236,8 @@ function getCurrentWeekBoundsCDT(): { weekStart: string; weekEnd: string } {
 // HCP data fetching
 // ---------------------------------------------------------------------------
 
-/** Fetches all jobs scheduled in [startDate, endDate] (YYYY-MM-DD). */
+/** Fetches all jobs scheduled in [startDate, endDate] (YYYY-MM-DD).
+ *  Hard-capped at 5 pages (1 000 jobs) to stay inside Cloudflare's 30s limit. */
 async function fetchAllJobsInRange(
   startDate: string,
   endDate: string,
@@ -245,7 +246,7 @@ async function fetchAllJobsInRange(
   let page = 1;
   const pageSize = 200;
 
-  while (page < 100) {
+  while (page <= 5) {
     const data = await hcpFetch<HcpJobsPage>("/jobs", {
       page,
       page_size: pageSize,
@@ -275,7 +276,8 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000);
   const ninetyDaysAgoStr = toChicagoDateStr(ninetyDaysAgo);
 
-  const twelveMonthsAgo = new Date(now.getTime() - 365 * 86_400_000);
+  // PM window matches the fetch window (90 days). Label in the UI reflects this.
+  const twelveMonthsAgo = new Date(now.getTime() - 90 * 86_400_000);
   const twelveMonthsAgoStr = toChicagoDateStr(twelveMonthsAgo);
 
   const { weekStart, weekEnd } = getCurrentWeekBoundsCDT();
@@ -397,11 +399,9 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
 export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
   async (): Promise<RevenueData> => {
     const now = new Date();
-    // Fetch 13 months so the 12-month PM section has full coverage even near
-    // the edges of the calendar month.
-    const start = toChicagoDateStr(
-      new Date(now.getTime() - 395 * 86_400_000),
-    );
+    // 90 days keeps the request well inside Cloudflare's 30s wall-clock limit.
+    // PM section shows repeat customers within this window instead of 12 months.
+    const start = toChicagoDateStr(new Date(now.getTime() - 90 * 86_400_000));
     const end = toChicagoDateStr(now);
 
     const jobs = await fetchAllJobsInRange(start, end);

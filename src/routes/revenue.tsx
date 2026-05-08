@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { ArrowLeft, AlertTriangle, TrendingUp, CalendarDays, Loader2, AlertCircle } from "lucide-react";
 import { MCRLogo } from "@/components/MCRLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +30,6 @@ export const Route = createFileRoute("/revenue")({
       },
     ],
   }),
-  loader: () => fetchRevenueData(),
-  pendingComponent: RevenuePending,
-  errorComponent: RevenueError,
   component: RevenuePage,
 });
 
@@ -83,56 +81,6 @@ function asOfLabel(iso: string): string {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Pending / error states
-// ---------------------------------------------------------------------------
-
-function RevenuePending() {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <RevenueHeader />
-      <main className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-muted-foreground">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-sm font-medium">Pulling revenue data from HouseCall Pro…</p>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function RevenueError({ error }: { error: Error }) {
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <RevenueHeader />
-      <main className="flex-1 flex items-center justify-center px-4">
-        <div className="max-w-lg w-full bg-card border border-destructive/30 rounded-xl p-8 text-center">
-          <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-foreground mb-2">
-            Could not load revenue data
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            The HouseCall Pro API returned an error. Make sure{" "}
-            <code className="font-mono bg-muted px-1 rounded">HCP_API_KEY</code>{" "}
-            is set as a Cloudflare Worker secret.
-          </p>
-          {import.meta.env.DEV && error?.message && (
-            <pre className="mt-3 text-left text-xs bg-muted rounded-md p-3 overflow-auto text-destructive max-h-40">
-              {error.message}
-            </pre>
-          )}
-          <Link
-            to="/"
-            className="mt-6 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to home
-          </Link>
-        </div>
-      </main>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Shared header
@@ -172,7 +120,54 @@ function RevenueHeader() {
 // ---------------------------------------------------------------------------
 
 function RevenuePage() {
-  const data: RevenueData = Route.useLoaderData();
+  const [data, setData] = useState<RevenueData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchRevenueData()
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <RevenueHeader />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="max-w-lg w-full bg-card border border-destructive/30 rounded-xl p-8 text-center">
+            <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-foreground mb-2">Could not load revenue data</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              The HouseCall Pro API returned an error. Make sure{" "}
+              <code className="font-mono bg-muted px-1 rounded">HCP_API_KEY</code>{" "}
+              is set as a Cloudflare Worker secret.
+            </p>
+            <pre className="mt-3 text-left text-xs bg-muted rounded-md p-3 overflow-auto text-destructive max-h-40">
+              {error}
+            </pre>
+            <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+              <ArrowLeft className="w-4 h-4" />
+              Back to home
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <RevenueHeader />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-muted-foreground">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-sm font-medium">Pulling revenue data from HouseCall Pro…</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -324,7 +319,7 @@ function RevenuePage() {
                 )}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                3 or more completed jobs in the last 12 months — prime PM contract candidates.
+                3 or more completed jobs in the last 90 days — prime PM contract candidates.
               </p>
             </CardHeader>
 
