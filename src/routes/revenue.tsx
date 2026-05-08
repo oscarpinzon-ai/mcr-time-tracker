@@ -126,10 +126,20 @@ function RevenueHeader() {
 // Main page
 // ---------------------------------------------------------------------------
 
+type SyncSummary = {
+  fetched: number;
+  inserted: number;
+  updated: number;
+  failed: number;
+  syncedAt: string;
+  errors?: string[];
+};
+
 function RevenuePage() {
   const [data, setData] = useState<RevenueData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<SyncSummary | null>(null);
   const openJobsRef = useRef<HTMLElement>(null);
 
   const loadData = useCallback(() => {
@@ -147,13 +157,25 @@ function RevenuePage() {
     try {
       const res = await fetch("/api/hcp-revenue-sync?days=90", { method: "POST" });
       const json = await res.json() as {
-        ok?: boolean; fetched?: number; upserted?: number; error?: string;
+        ok?: boolean; fetched?: number; inserted?: number; updated?: number;
+        failed?: number; syncedAt?: string; errors?: string[]; error?: string;
       };
       if (!res.ok || !json.ok) {
         toast.error(`Sync failed: ${json.error ?? "unknown error"}`, { id: toastId });
         return;
       }
-      toast.success(`Synced ${json.fetched} jobs from HCP`, { id: toastId });
+      setLastSync({
+        fetched: json.fetched ?? 0,
+        inserted: json.inserted ?? 0,
+        updated: json.updated ?? 0,
+        failed: json.failed ?? 0,
+        syncedAt: json.syncedAt ?? new Date().toISOString(),
+        errors: json.errors,
+      });
+      toast.success(
+        `Synced ${json.fetched ?? 0} jobs · +${json.inserted ?? 0} new, ~${json.updated ?? 0} updated${json.failed ? `, ${json.failed} failed` : ""}`,
+        { id: toastId },
+      );
       setData(null);
       loadData();
     } catch (err) {
