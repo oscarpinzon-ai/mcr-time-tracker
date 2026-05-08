@@ -346,29 +346,23 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
     // The cache is populated by the HCP sync cron; typically has 7-90+ days
     // depending on how long the sync has been running.
     const { data: rows, error } = await supabase
-      .from("hcp_jobs_cache")
-      .select("hcp_job_id, job_number, customer_name, status, scheduled_date, raw_data")
+      .from("work_orders")
+      .select("hcp_id, number, customer_name, hcp_status, scheduled_date, raw_data")
       .order("scheduled_date", { ascending: false });
 
     if (error) throw new Error(`Supabase error: ${error.message}`);
 
     const allRows = rows ?? [];
 
-    // Map cache rows → HcpRevenueJob shape.
-    // raw_data holds the full original HCP response (payment fields, schedule, etc.)
-    // We spread it first, then overlay with the canonical cache columns.
     const jobs: HcpRevenueJob[] = allRows.map((row) => {
       const raw = (row.raw_data ?? {}) as Record<string, unknown>;
       return {
         ...raw,
-        id: String(row.hcp_job_id),
-        // Use raw HCP work_status if present; fall back to cache status
-        work_status: (raw.work_status as string | undefined) ?? row.status ?? undefined,
-        // Ensure customer is available even if raw_data is sparse
+        id: String(row.hcp_id ?? row.number),
+        work_status: (raw.work_status as string | undefined) ?? row.hcp_status ?? undefined,
         customer: (raw.customer as HcpRevenueJob["customer"]) ?? {
           company_name: row.customer_name ?? undefined,
         },
-        // Ensure schedule has at least scheduled_start for date filtering
         schedule: (raw.schedule as HcpRevenueJob["schedule"]) ?? {
           scheduled_start: row.scheduled_date
             ? `${row.scheduled_date}T12:00:00`
