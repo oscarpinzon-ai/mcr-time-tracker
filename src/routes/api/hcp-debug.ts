@@ -23,12 +23,11 @@ export const Route = createFileRoute("/api/hcp-debug")({
           );
         }
 
-        // Fetch exactly one completed job — no mapping, no transformation.
-        // work_status[] is the HCP API's array parameter for status filtering.
+        // Fetch the first job HCP returns with no status filter — we just need
+        // to see the raw field structure regardless of job status.
         const url = new URL(`${HCP_BASE}/jobs`);
         url.searchParams.set("page", "1");
         url.searchParams.set("page_size", "1");
-        url.searchParams.append("work_status[]", "complete");
 
         let hcpRes: Response;
         try {
