@@ -126,10 +126,20 @@ function RevenueHeader() {
 // Main page
 // ---------------------------------------------------------------------------
 
+type SyncSummary = {
+  fetched: number;
+  inserted: number;
+  updated: number;
+  failed: number;
+  syncedAt: string;
+  errors?: string[];
+};
+
 function RevenuePage() {
   const [data, setData] = useState<RevenueData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<SyncSummary | null>(null);
   const openJobsRef = useRef<HTMLElement>(null);
 
   const loadData = useCallback(() => {
@@ -147,13 +157,25 @@ function RevenuePage() {
     try {
       const res = await fetch("/api/hcp-revenue-sync?days=90", { method: "POST" });
       const json = await res.json() as {
-        ok?: boolean; fetched?: number; upserted?: number; error?: string;
+        ok?: boolean; fetched?: number; inserted?: number; updated?: number;
+        failed?: number; syncedAt?: string; errors?: string[]; error?: string;
       };
       if (!res.ok || !json.ok) {
         toast.error(`Sync failed: ${json.error ?? "unknown error"}`, { id: toastId });
         return;
       }
-      toast.success(`Synced ${json.fetched} jobs from HCP`, { id: toastId });
+      setLastSync({
+        fetched: json.fetched ?? 0,
+        inserted: json.inserted ?? 0,
+        updated: json.updated ?? 0,
+        failed: json.failed ?? 0,
+        syncedAt: json.syncedAt ?? new Date().toISOString(),
+        errors: json.errors,
+      });
+      toast.success(
+        `Synced ${json.fetched ?? 0} jobs · +${json.inserted ?? 0} new, ~${json.updated ?? 0} updated${json.failed ? `, ${json.failed} failed` : ""}`,
+        { id: toastId },
+      );
       setData(null);
       loadData();
     } catch (err) {
@@ -228,6 +250,35 @@ function RevenuePage() {
             Data as of {asOfLabel(data.asOf)} · HCP cache
           </p>
         </div>
+
+        {/* ---- Last sync summary ---- */}
+        {lastSync && (
+          <div className="rounded-lg border border-border bg-card px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+            <span className="font-semibold uppercase tracking-wide text-muted-foreground">
+              Last HCP sync
+            </span>
+            <span className="text-muted-foreground">
+              Fetched <span className="font-bold text-foreground tabular-nums">{lastSync.fetched}</span>
+            </span>
+            <span className="text-green-700">
+              Inserted <span className="font-bold tabular-nums">{lastSync.inserted}</span>
+            </span>
+            <span className="text-blue-700">
+              Updated <span className="font-bold tabular-nums">{lastSync.updated}</span>
+            </span>
+            <span className={lastSync.failed > 0 ? "text-destructive" : "text-muted-foreground"}>
+              Failed <span className="font-bold tabular-nums">{lastSync.failed}</span>
+            </span>
+            <span className="text-muted-foreground ml-auto">
+              {asOfLabel(lastSync.syncedAt)}
+            </span>
+            {lastSync.errors && lastSync.errors.length > 0 && (
+              <p className="basis-full text-destructive text-[11px] mt-1">
+                {lastSync.errors.join(" · ")}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ================================================================
             SECTION 1 — Receivables At Risk
