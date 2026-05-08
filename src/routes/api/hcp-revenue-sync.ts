@@ -204,9 +204,36 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
           raw_data: job,
         }));
 
-        // Upsert in batches of 100 to stay within Supabase limits
+        // Determine which hcp_ids already exist (to distinguish insert vs update)
+        const allIds = rows.map((r) => r.hcp_id);
+        const existingIds = new Set<string>();
+        const ID_BATCH = 500;
+        for (let i = 0; i < allIds.length; i += ID_BATCH) {
+          const slice = allIds.slice(i, i + ID_BATCH);
+          const { data: existing, error: selErr } = await supabase
+            .from("work_orders")
+            .select("hcp_id")
+            .in("hcp_id", slice);
+          if (selErr) {
+            return new Response(
+              JSON.stringify({
+                error: "Supabase select error",
+                detail: selErr.message,
+              }),
+              { status: 500, headers: { "Content-Type": "application/json" } },
+            );
+          }
+          for (const r of existing ?? []) {
+            if (r.hcp_id) existingIds.add(r.hcp_id);
+          }
+        }
+
+        // Upsert in batches of 100; track failures per batch instead of aborting
         const BATCH = 100;
-        let upserted = 0;
+        let inserted = 0;
+        let updated = 0;
+        let failed = 0;
+        const errors: string[] = [];
         for (let i = 0; i < rows.length; i += BATCH) {
           const batch = rows.slice(i, i + BATCH);
           const { error } = await supabase.from("work_orders").upsert(
@@ -214,26 +241,29 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
             { onConflict: "hcp_id" },
           );
           if (error) {
-            return new Response(
-              JSON.stringify({
-                error: "Supabase upsert error",
-                detail: error.message,
-                upserted_so_far: upserted,
-              }),
-              { status: 500, headers: { "Content-Type": "application/json" } },
-            );
+            failed += batch.length;
+            if (errors.length < 3) errors.push(error.message);
+            continue;
           }
-          upserted += batch.length;
+          for (const r of batch) {
+            if (existingIds.has(r.hcp_id)) updated++;
+            else inserted++;
+          }
         }
 
         return new Response(
           JSON.stringify({
             ok: true,
             fetched: allJobs.length,
-            upserted,
+            inserted,
+            updated,
+            failed,
+            upserted: inserted + updated,
+            errors,
             dateRange: { from: startDate, to: endDate },
             hcpPages: page,
             hcpTotalPages: totalPages,
+            syncedAt: new Date().toISOString(),
           }),
           { headers: { "Content-Type": "application/json" } },
         );
