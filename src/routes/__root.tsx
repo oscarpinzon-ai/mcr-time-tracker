@@ -84,13 +84,6 @@ function RootComponent() {
           </Link>
           <span className="text-border select-none">·</span>
           <Link
-            to="/admin"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Admin
-          </Link>
-          <span className="text-border select-none">·</span>
-          <Link
             to="/revenue"
             className="text-primary font-semibold hover:text-primary/80 transition-colors"
           >
