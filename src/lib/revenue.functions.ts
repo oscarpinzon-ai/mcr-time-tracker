@@ -377,8 +377,8 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
     const supabase = getSupabase();
 
     const { data: rows, error } = await supabase
-      .from("hcp_jobs_cache")
-      .select("hcp_job_id, job_number, customer_name, status, scheduled_date, raw_data")
+      .from("work_orders")
+      .select("hcp_id, number, customer_name, hcp_status, scheduled_date, raw_data")
       .order("scheduled_date", { ascending: false });
 
     if (error) throw new Error(`Supabase error: ${error.message}`);
@@ -389,8 +389,8 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
       const raw = (row.raw_data ?? {}) as Record<string, unknown>;
       return {
         ...raw,
-        id: String(row.hcp_job_id),
-        work_status: (raw.work_status as string | undefined) ?? row.status ?? undefined,
+        id: String(row.hcp_id),
+        work_status: (raw.work_status as string | undefined) ?? row.hcp_status ?? undefined,
         customer: (raw.customer as HcpRevenueJob["customer"]) ?? {
           company_name: row.customer_name ?? undefined,
         },
