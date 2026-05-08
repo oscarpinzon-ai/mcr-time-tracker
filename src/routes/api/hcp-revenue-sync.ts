@@ -208,9 +208,9 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
         let upserted = 0;
         for (let i = 0; i < rows.length; i += BATCH) {
           const batch = rows.slice(i, i + BATCH);
-          const { error } = await supabase.from("hcp_jobs_cache").upsert(
+          const { error } = await supabase.from("work_orders").upsert(
             batch,
-            { onConflict: "hcp_job_id" },
+            { onConflict: "hcp_id" },
           );
           if (error) {
             return new Response(
