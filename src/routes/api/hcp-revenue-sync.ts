@@ -189,16 +189,17 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
         }
 
         const rows = allJobs.map((job) => ({
-          hcp_job_id: String(job.id),
-          job_number: (job.invoice_number ??
-            job.job_number ??
-            job.id) as string,
+          hcp_id: String(job.id),
+          number: String(
+            job.invoice_number ?? job.job_number ?? job.id,
+          ),
           customer_name: getCustomerName(job),
-          job_type: getJobType(job),
-          job_address: getJobAddress(job),
-          status: mapStatus(job.work_status as string | undefined),
+          hcp_type: "job",
+          description: getJobType(job),
+          address: getJobAddress(job),
+          hcp_status: mapStatus(job.work_status as string | undefined),
           scheduled_date: getScheduledDate(job),
-          assigned_employee_ids: getAssignedEmployeeIds(job),
+          assigned_to: (getAssignedEmployeeIds(job) ?? []).join(",") || null,
           last_synced_at: new Date().toISOString(),
           raw_data: job,
         }));
@@ -208,9 +209,9 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
         let upserted = 0;
         for (let i = 0; i < rows.length; i += BATCH) {
           const batch = rows.slice(i, i + BATCH);
-          const { error } = await supabase.from("hcp_jobs_cache").upsert(
+          const { error } = await supabase.from("work_orders").upsert(
             batch,
-            { onConflict: "hcp_job_id" },
+            { onConflict: "hcp_id" },
           );
           if (error) {
             return new Response(
