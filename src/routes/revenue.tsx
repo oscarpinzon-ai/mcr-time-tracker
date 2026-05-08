@@ -175,9 +175,16 @@ function RevenuePage() {
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8">
         {/* Meta row */}
-        <p className="text-xs text-muted-foreground text-right">
-          Data as of {asOfLabel(data.asOf)} · Source: HouseCall Pro
-        </p>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          {data.cacheDaysAvailable < 30 && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Cache has ~{data.cacheDaysAvailable}d of history · receivables may be incomplete
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground ml-auto">
+            Data as of {asOfLabel(data.asOf)} · Source: HCP cache
+          </p>
+        </div>
 
         {/* ================================================================
             SECTION 1 — Receivables At Risk

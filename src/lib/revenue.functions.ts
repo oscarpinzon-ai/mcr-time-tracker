@@ -1,24 +1,13 @@
 /**
  * Revenue Intelligence — server-only data fetching.
- * Calls HCP API directly (not the cache) to get fresh 365-day job history.
- * Never import this from client-side code; it uses hcpFetch which reads
- * process.env.HCP_API_KEY.
+ * Reads from Supabase hcp_jobs_cache (instant, no HCP API call).
+ * raw_data jsonb contains the full HCP response including payment fields.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { hcpFetch } from "@/lib/hcp.server";
+import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
 // HCP response shape for revenue purposes
-// We extend the base type with payment/invoice fields that HCP returns but
-// that aren't mapped in the standard hcp_jobs_cache flow.
-//
-// Field notes (HCP API v1):
-//   total_amount      — top-level invoice total (dollars)
-//   outstanding_balance / balance_due — remaining unpaid amount; if > 0 the
-//                       invoice is unpaid. We prefer balance_due per spec.
-//   invoice_sent_at   — ISO timestamp when the invoice was emailed/sent.
-//   payment_status    — "paid" | "unpaid" | etc. (not always present).
-//   invoice.*         — some HCP responses nest the same fields under invoice{}.
 // ---------------------------------------------------------------------------
 type HcpRevenueJob = {
   id: string;
@@ -26,14 +15,12 @@ type HcpRevenueJob = {
   job_number?: string;
   work_status?: string;
 
-  // Invoice / payment — use balance_due as primary indicator (spec requirement)
   total_amount?: number;
   balance_due?: number;
   outstanding_balance?: number;
   payment_status?: string;
   invoice_sent_at?: string;
 
-  // Nested invoice object (alternate HCP response shape)
   invoice?: {
     sent_at?: string;
     total?: number;
@@ -64,13 +51,6 @@ type HcpRevenueJob = {
   [key: string]: unknown;
 };
 
-type HcpJobsPage = {
-  jobs?: HcpRevenueJob[];
-  data?: HcpRevenueJob[];
-  total_pages?: number;
-  page?: number;
-};
-
 // ---------------------------------------------------------------------------
 // Public result types
 // ---------------------------------------------------------------------------
@@ -87,7 +67,7 @@ export type PmCandidate = {
   customerName: string;
   totalJobs: number;
   totalRevenue: number;
-  avgDaysToPay: number; // 0 if HCP doesn't expose payment-received date
+  avgDaysToPay: number;
 };
 
 export type WeeklySnapshot = {
@@ -98,20 +78,39 @@ export type WeeklySnapshot = {
 };
 
 export type RevenueData = {
-  /** All unpaid completed jobs in last 90 days, sorted worst-first. */
   receivables: ReceivableJob[];
-  /** Sum of invoices where daysSinceInvoice > 15. */
   totalAtRisk: number;
-  /** Number of receivable jobs where daysSinceInvoice > 15. */
   atRiskCount: number;
-  /** Average days overdue among at-risk jobs. */
   avgDaysOverdue: number;
-  /** Customers with 3+ completed jobs in last 12 months. */
   pmCandidates: PmCandidate[];
   weeklySnapshot: WeeklySnapshot;
-  /** ISO timestamp of when this data was fetched. */
   asOf: string;
+  /** How many days of job history are in the cache */
+  cacheDaysAvailable: number;
 };
+
+// ---------------------------------------------------------------------------
+// Supabase client (server-side, no session persistence)
+// ---------------------------------------------------------------------------
+
+function getSupabase() {
+  const url =
+    process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+  // Prefer service role (bypasses RLS) but anon/publishable key also works
+  // since hcp_jobs_cache has Allow-all RLS policies.
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY ??
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+    "";
+  if (!url || !key)
+    throw new Error(
+      "Supabase env vars not set (need SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY or SUPABASE_PUBLISHABLE_KEY)",
+    );
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers — data extraction
@@ -129,15 +128,12 @@ function getCustomerName(job: HcpRevenueJob): string {
 }
 
 function getInvoiceTotal(job: HcpRevenueJob): number {
-  // 1. top-level total_amount (most common)
   if (typeof job.total_amount === "number" && job.total_amount > 0)
     return job.total_amount;
-  // 2. nested invoice object
   if (typeof job.invoice?.total === "number" && job.invoice.total > 0)
     return job.invoice.total;
   if (typeof job.invoice?.subtotal === "number" && job.invoice.subtotal > 0)
     return job.invoice.subtotal;
-  // 3. sum work line items
   if (job.work_line_items?.length) {
     const sum = job.work_line_items.reduce((acc, item) => {
       if (typeof item.total === "number") return acc + item.total;
@@ -150,31 +146,25 @@ function getInvoiceTotal(job: HcpRevenueJob): number {
   return 0;
 }
 
-/** Returns remaining balance in dollars; -1 means "unknown" (no data). */
 function getBalanceDue(job: HcpRevenueJob): number {
-  // balance_due is the primary indicator per spec
   if (typeof job.balance_due === "number") return job.balance_due;
   if (typeof job.invoice?.balance_due === "number")
     return job.invoice.balance_due;
   if (typeof job.outstanding_balance === "number")
     return job.outstanding_balance;
-  return -1; // unknown
+  return -1;
 }
 
-/** Returns false only when we can clearly confirm the invoice is paid. */
 function isUnpaid(job: HcpRevenueJob): boolean {
   const balance = getBalanceDue(job);
   if (balance !== -1) return balance > 0;
-  // Fall back to payment_status string if balance not available
   const status =
     (job.payment_status as string | undefined) ??
     (job.invoice?.payment_status as string | undefined);
   if (status === "paid") return false;
-  // If we have no data at all, treat as unpaid (conservative / catches more)
   return true;
 }
 
-/** Best-effort date for when the invoice was sent or the job completed. */
 function getInvoiceSentAt(job: HcpRevenueJob): Date | null {
   const raw =
     job.invoice_sent_at ??
@@ -193,7 +183,6 @@ function isCompleted(job: HcpRevenueJob): boolean {
 // Helpers — date/timezone
 // ---------------------------------------------------------------------------
 
-/** Returns a YYYY-MM-DD string for any Date in America/Chicago. */
 function toChicagoDateStr(date: Date): string {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Chicago",
@@ -208,7 +197,6 @@ function toChicagoDateStr(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Returns YYYY-MM-DD of Monday and Sunday of the current CDT week. */
 function getCurrentWeekBoundsCDT(): { weekStart: string; weekEnd: string } {
   const now = new Date();
   const weekdayStr = new Intl.DateTimeFormat("en-US", {
@@ -220,7 +208,6 @@ function getCurrentWeekBoundsCDT(): { weekStart: string; weekEnd: string } {
     Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
   };
   const todayNum = dayIndex[weekdayStr] ?? 1;
-  // Days elapsed since Monday (Mon=0 … Sun=6)
   const daysSinceMon = todayNum === 0 ? 6 : todayNum - 1;
 
   const monday = new Date(now.getTime() - daysSinceMon * 86_400_000);
@@ -233,53 +220,17 @@ function getCurrentWeekBoundsCDT(): { weekStart: string; weekEnd: string } {
 }
 
 // ---------------------------------------------------------------------------
-// HCP data fetching
-// ---------------------------------------------------------------------------
-
-/** Fetches all jobs scheduled in [startDate, endDate] (YYYY-MM-DD).
- *  Hard-capped at 5 pages (1 000 jobs) to stay inside Cloudflare's 30s limit. */
-async function fetchAllJobsInRange(
-  startDate: string,
-  endDate: string,
-): Promise<HcpRevenueJob[]> {
-  const all: HcpRevenueJob[] = [];
-  let page = 1;
-  const pageSize = 200;
-
-  while (page <= 5) {
-    const data = await hcpFetch<HcpJobsPage>("/jobs", {
-      page,
-      page_size: pageSize,
-      scheduled_start_min: startDate,
-      scheduled_start_max: endDate,
-    });
-
-    const list = data.jobs ?? data.data ?? [];
-    all.push(...list);
-
-    const totalPages = data.total_pages ?? 1;
-    if (page >= totalPages || list.length < pageSize) break;
-    page++;
-  }
-
-  return all;
-}
-
-// ---------------------------------------------------------------------------
 // Core data processing
 // ---------------------------------------------------------------------------
 
-function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
+function processRevenueData(
+  jobs: HcpRevenueJob[],
+  cacheDaysAvailable: number,
+): RevenueData {
   const now = new Date();
   const todayStr = toChicagoDateStr(now);
-
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000);
   const ninetyDaysAgoStr = toChicagoDateStr(ninetyDaysAgo);
-
-  // PM window matches the fetch window (90 days). Label in the UI reflects this.
-  const twelveMonthsAgo = new Date(now.getTime() - 90 * 86_400_000);
-  const twelveMonthsAgoStr = toChicagoDateStr(twelveMonthsAgo);
-
   const { weekStart, weekEnd } = getCurrentWeekBoundsCDT();
 
   // ---- Section 1: Receivables ----
@@ -305,7 +256,6 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
         daysSinceInvoice: daysSince,
       };
     })
-    // Worst first
     .sort((a, b) => b.daysSinceInvoice - a.daysSinceInvoice);
 
   const atRiskJobs = unpaidCompleted90d.filter((r) => r.daysSinceInvoice > 15);
@@ -319,19 +269,15 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
       : 0;
 
   // ---- Section 2: PM Candidates ----
-  const completedIn12mo = jobs.filter((job) => {
+  const completedInWindow = jobs.filter((job) => {
     if (!isCompleted(job)) return false;
     const scheduledStr = job.schedule?.scheduled_start;
     if (!scheduledStr) return false;
-    return toChicagoDateStr(new Date(scheduledStr)) >= twelveMonthsAgoStr;
+    return toChicagoDateStr(new Date(scheduledStr)) >= ninetyDaysAgoStr;
   });
 
-  // Group by customer name
-  const customerMap = new Map<
-    string,
-    { jobs: HcpRevenueJob[]; revenue: number }
-  >();
-  for (const job of completedIn12mo) {
+  const customerMap = new Map<string, { jobs: HcpRevenueJob[]; revenue: number }>();
+  for (const job of completedInWindow) {
     const name = getCustomerName(job);
     const entry = customerMap.get(name) ?? { jobs: [], revenue: 0 };
     entry.jobs.push(job);
@@ -345,8 +291,6 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
       customerName: name,
       totalJobs: e.jobs.length,
       totalRevenue: e.revenue,
-      // HCP doesn't reliably expose payment-received timestamp so we can't
-      // compute avg days-to-pay without a second per-job lookup.
       avgDaysToPay: 0,
     }))
     .sort((a, b) => b.totalRevenue - a.totalRevenue);
@@ -371,10 +315,7 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
 
   const weeklySnapshot: WeeklySnapshot = {
     jobsCompleted: weekCompleted.length,
-    revenueInvoiced: weekCompleted.reduce(
-      (s, j) => s + getInvoiceTotal(j),
-      0,
-    ),
+    revenueInvoiced: weekCompleted.reduce((s, j) => s + getInvoiceTotal(j), 0),
     revenueCollected: weekCompleted
       .filter((j) => !isUnpaid(j))
       .reduce((s, j) => s + getInvoiceTotal(j), 0),
@@ -389,22 +330,66 @@ function processRevenueData(jobs: HcpRevenueJob[]): RevenueData {
     pmCandidates,
     weeklySnapshot,
     asOf: now.toISOString(),
+    cacheDaysAvailable,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Exported server function
+// Exported server function — reads from Supabase cache (no HCP API call)
 // ---------------------------------------------------------------------------
 
 export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
   async (): Promise<RevenueData> => {
-    const now = new Date();
-    // 90 days keeps the request well inside Cloudflare's 30s wall-clock limit.
-    // PM section shows repeat customers within this window instead of 12 months.
-    const start = toChicagoDateStr(new Date(now.getTime() - 90 * 86_400_000));
-    const end = toChicagoDateStr(now);
+    const supabase = getSupabase();
 
-    const jobs = await fetchAllJobsInRange(start, end);
-    return processRevenueData(jobs);
+    // Pull all cached jobs — no date filter so we use everything available.
+    // The cache is populated by the HCP sync cron; typically has 7-90+ days
+    // depending on how long the sync has been running.
+    const { data: rows, error } = await supabase
+      .from("hcp_jobs_cache")
+      .select("hcp_job_id, job_number, customer_name, status, scheduled_date, raw_data")
+      .order("scheduled_date", { ascending: false });
+
+    if (error) throw new Error(`Supabase error: ${error.message}`);
+
+    const allRows = rows ?? [];
+
+    // Map cache rows → HcpRevenueJob shape.
+    // raw_data holds the full original HCP response (payment fields, schedule, etc.)
+    // We spread it first, then overlay with the canonical cache columns.
+    const jobs: HcpRevenueJob[] = allRows.map((row) => {
+      const raw = (row.raw_data ?? {}) as Record<string, unknown>;
+      return {
+        ...raw,
+        id: String(row.hcp_job_id),
+        // Use raw HCP work_status if present; fall back to cache status
+        work_status: (raw.work_status as string | undefined) ?? row.status ?? undefined,
+        // Ensure customer is available even if raw_data is sparse
+        customer: (raw.customer as HcpRevenueJob["customer"]) ?? {
+          company_name: row.customer_name ?? undefined,
+        },
+        // Ensure schedule has at least scheduled_start for date filtering
+        schedule: (raw.schedule as HcpRevenueJob["schedule"]) ?? {
+          scheduled_start: row.scheduled_date
+            ? `${row.scheduled_date}T12:00:00`
+            : undefined,
+        },
+      } as HcpRevenueJob;
+    });
+
+    // Determine how many days of history we actually have
+    const dates = allRows
+      .map((r) => r.scheduled_date)
+      .filter(Boolean)
+      .sort();
+    let cacheDaysAvailable = 0;
+    if (dates.length > 0) {
+      const oldest = new Date(dates[0] + "T00:00:00");
+      cacheDaysAvailable = Math.floor(
+        (Date.now() - oldest.getTime()) / 86_400_000,
+      );
+    }
+
+    return processRevenueData(jobs, cacheDaysAvailable);
   },
 );
