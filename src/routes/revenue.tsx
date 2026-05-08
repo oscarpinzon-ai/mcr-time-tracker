@@ -1,24 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, AlertTriangle, TrendingUp, CalendarDays, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  ArrowLeft, AlertTriangle, TrendingUp, CalendarDays, Loader2,
+  AlertCircle, RefreshCw, ClipboardList, Search, X, MapPin,
+} from "lucide-react";
 import { MCRLogo } from "@/components/MCRLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { fetchRevenueData } from "@/lib/revenue.functions";
-import type { ReceivableJob, PmCandidate, RevenueData } from "@/lib/revenue.functions";
+import type { ReceivableJob, PmCandidate, RevenueData, OpenJob } from "@/lib/revenue.functions";
 
 // ---------------------------------------------------------------------------
-// Route definition
+// Route
 // ---------------------------------------------------------------------------
 
 export const Route = createFileRoute("/revenue")({
@@ -27,8 +26,7 @@ export const Route = createFileRoute("/revenue")({
       { title: "Revenue Intelligence — MCR Tech Performance Tool" },
       {
         name: "description",
-        content:
-          "Live receivables, PM opportunities, and weekly revenue snapshot for Modern Compactor Repair.",
+        content: "Live receivables, PM opportunities, and weekly revenue snapshot for Modern Compactor Repair.",
       },
     ],
   }),
@@ -36,53 +34,60 @@ export const Route = createFileRoute("/revenue")({
 });
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Formatters
 // ---------------------------------------------------------------------------
 
 function fmt$(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
+function fmtDate(iso: string): string {
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+}
+
 function rowColor(days: number): string {
-  if (days > 30)
-    return "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500";
-  if (days >= 15)
-    return "bg-yellow-50 hover:bg-yellow-100 border-l-4 border-l-yellow-500";
+  if (days > 30) return "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500";
+  if (days >= 15) return "bg-yellow-50 hover:bg-yellow-100 border-l-4 border-l-yellow-500";
   return "bg-green-50 hover:bg-green-100 border-l-4 border-l-green-500";
 }
 
 function ageBadge(days: number) {
   if (days > 30)
-    return (
-      <Badge className="bg-red-100 text-red-700 hover:bg-red-100 font-semibold">
-        {days}d
-      </Badge>
-    );
+    return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 font-semibold">{days}d</Badge>;
   if (days >= 15)
-    return (
-      <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 font-semibold">
-        {days}d
-      </Badge>
-    );
-  return (
-    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 font-semibold">
-      {days}d
-    </Badge>
-  );
+    return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 font-semibold">{days}d</Badge>;
+  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 font-semibold">{days}d</Badge>;
 }
 
 function asOfLabel(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     timeZone: "America/Chicago",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
   });
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  scheduled: "Scheduled",
+  in_progress: "In Progress",
+  unscheduled: "Unscheduled",
+  needs_review: "Needs Review",
+  complete: "Complete",
+  completed: "Complete",
+};
+
+function statusBadge(status: string) {
+  const s = status.toLowerCase();
+  if (s === "in_progress" || s === "working")
+    return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 text-xs">In Progress</Badge>;
+  if (s === "unscheduled")
+    return <Badge className="bg-gray-100 text-gray-600 hover:bg-gray-100 text-xs">Unscheduled</Badge>;
+  if (s === "needs_review")
+    return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-xs">Needs Review</Badge>;
+  return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs">Scheduled</Badge>;
+}
 
 // ---------------------------------------------------------------------------
 // Shared header
@@ -125,8 +130,10 @@ function RevenuePage() {
   const [data, setData] = useState<RevenueData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const openJobsRef = useRef<HTMLElement>(null);
 
   const loadData = useCallback(() => {
+    setError(null);
     fetchRevenueData()
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
@@ -139,13 +146,14 @@ function RevenuePage() {
     const toastId = toast.loading("Syncing 90 days of jobs from HouseCall Pro…");
     try {
       const res = await fetch("/api/hcp-revenue-sync?days=90", { method: "POST" });
-      const json = await res.json() as { ok?: boolean; fetched?: number; upserted?: number; error?: string; detail?: string };
+      const json = await res.json() as {
+        ok?: boolean; fetched?: number; upserted?: number; error?: string;
+      };
       if (!res.ok || !json.ok) {
         toast.error(`Sync failed: ${json.error ?? "unknown error"}`, { id: toastId });
         return;
       }
       toast.success(`Synced ${json.fetched} jobs from HCP`, { id: toastId });
-      // Re-fetch dashboard data from the now-populated cache
       setData(null);
       loadData();
     } catch (err) {
@@ -155,6 +163,11 @@ function RevenuePage() {
     }
   }
 
+  function scrollToOpenJobs() {
+    openJobsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // ---- Error state ----
   if (error) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -163,24 +176,15 @@ function RevenuePage() {
           <div className="max-w-lg w-full bg-card border border-destructive/30 rounded-xl p-8 text-center">
             <AlertCircle className="w-10 h-10 text-destructive mx-auto mb-4" />
             <h2 className="text-xl font-bold text-foreground mb-2">Could not load revenue data</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              The HouseCall Pro API returned an error. Make sure{" "}
-              <code className="font-mono bg-muted px-1 rounded">HCP_API_KEY</code>{" "}
-              is set as a Cloudflare Worker secret.
-            </p>
-            <pre className="mt-3 text-left text-xs bg-muted rounded-md p-3 overflow-auto text-destructive max-h-40">
-              {error}
-            </pre>
-            <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
-              <ArrowLeft className="w-4 h-4" />
-              Back to home
-            </Link>
+            <pre className="mt-3 text-left text-xs bg-muted rounded-md p-3 overflow-auto text-destructive max-h-40">{error}</pre>
+            <button onClick={loadData} className="mt-6 text-sm text-primary hover:underline">Retry</button>
           </div>
         </main>
       </div>
     );
   }
 
+  // ---- Loading state ----
   if (!data) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -188,7 +192,7 @@ function RevenuePage() {
         <main className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4 text-muted-foreground">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="text-sm font-medium">Pulling revenue data from HouseCall Pro…</p>
+            <p className="text-sm font-medium">Pulling revenue data…</p>
           </div>
         </main>
       </div>
@@ -200,7 +204,8 @@ function RevenuePage() {
       <RevenueHeader />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-8">
-        {/* Meta row */}
+
+        {/* ---- Meta row ---- */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
             {data.cacheDaysAvailable < 30 && (
@@ -220,7 +225,7 @@ function RevenuePage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Data as of {asOfLabel(data.asOf)} · Source: HCP cache
+            Data as of {asOfLabel(data.asOf)} · HCP cache
           </p>
         </div>
 
@@ -235,7 +240,6 @@ function RevenuePage() {
             </h2>
           </div>
 
-          {/* Hero KPI */}
           <Card className="mb-4 border-destructive/30">
             <CardContent className="pt-6 pb-5">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -243,48 +247,36 @@ function RevenuePage() {
                   <p className="text-5xl sm:text-6xl font-bold text-destructive tabular-nums">
                     {fmt$(data.totalAtRisk)}
                   </p>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    at risk
-                  </p>
+                  <p className="text-muted-foreground mt-1 text-sm">at risk</p>
                 </div>
                 <div className="text-sm text-muted-foreground sm:text-right space-y-0.5">
                   <p>
-                    <span className="font-semibold text-foreground">
-                      {data.atRiskCount}
-                    </span>{" "}
+                    <span className="font-semibold text-foreground">{data.atRiskCount}</span>{" "}
                     job{data.atRiskCount !== 1 ? "s" : ""} over 15 days
                   </p>
                   {data.atRiskCount > 0 && (
                     <p>
                       avg{" "}
-                      <span className="font-semibold text-foreground">
-                        {data.avgDaysOverdue}
-                      </span>{" "}
+                      <span className="font-semibold text-foreground">{data.avgDaysOverdue}</span>{" "}
                       days overdue
                     </p>
                   )}
                 </div>
               </div>
-
-              {/* Legend */}
               <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-green-400 inline-block" />
-                  &lt;15 days
+                  <span className="w-3 h-3 rounded-sm bg-green-400 inline-block" />&lt;15 days
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-yellow-400 inline-block" />
-                  15–30 days
+                  <span className="w-3 h-3 rounded-sm bg-yellow-400 inline-block" />15–30 days
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />
-                  &gt;30 days
+                  <span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />&gt;30 days
                 </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Receivables table */}
           {data.receivables.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground text-sm">
@@ -298,37 +290,22 @@ function RevenuePage() {
                   <TableRow className="bg-muted/50">
                     <TableHead className="font-semibold text-foreground">Customer</TableHead>
                     <TableHead className="font-semibold text-foreground">Job #</TableHead>
-                    <TableHead className="font-semibold text-foreground text-right">
-                      Invoice Value
-                    </TableHead>
-                    <TableHead className="font-semibold text-foreground text-center">
-                      Days Since Invoice
-                    </TableHead>
-                    <TableHead className="font-semibold text-foreground text-center">
-                      Status
-                    </TableHead>
+                    <TableHead className="font-semibold text-foreground text-right">Invoice</TableHead>
+                    <TableHead className="font-semibold text-foreground text-center">Age</TableHead>
+                    <TableHead className="font-semibold text-foreground text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.receivables.map((row: ReceivableJob) => (
                     <TableRow key={row.jobId} className={rowColor(row.daysSinceInvoice)}>
                       <TableCell className="font-medium">{row.customerName}</TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {row.jobNumber}
-                      </TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">{row.jobNumber}</TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">
                         {row.invoiceValue > 0 ? fmt$(row.invoiceValue) : "—"}
                       </TableCell>
+                      <TableCell className="text-center">{ageBadge(row.daysSinceInvoice)}</TableCell>
                       <TableCell className="text-center">
-                        {ageBadge(row.daysSinceInvoice)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className="text-xs text-muted-foreground"
-                        >
-                          Unpaid
-                        </Badge>
+                        <Badge variant="outline" className="text-xs text-muted-foreground">Unpaid</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -344,9 +321,7 @@ function RevenuePage() {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-bold uppercase tracking-tight text-foreground">
-              PM Opportunity
-            </h2>
+            <h2 className="text-xl font-bold uppercase tracking-tight text-foreground">PM Opportunity</h2>
           </div>
 
           <Card className="mb-4">
@@ -354,13 +329,11 @@ function RevenuePage() {
               <CardTitle className="text-base font-semibold text-foreground">
                 {data.pmCandidates.length > 0 ? (
                   <>
-                    <span className="text-3xl font-bold text-primary">
-                      {data.pmCandidates.length}
-                    </span>{" "}
+                    <span className="text-3xl font-bold text-primary">{data.pmCandidates.length}</span>{" "}
                     client{data.pmCandidates.length !== 1 ? "s are" : " is"} repeat customers
                   </>
                 ) : (
-                  "No repeat customers found in the last 12 months"
+                  "No repeat customers found in the last 90 days"
                 )}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -374,44 +347,31 @@ function RevenuePage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold text-foreground">
-                          Customer Name
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground text-center">
-                          Jobs (12 mo)
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground text-right">
-                          Revenue (12 mo)
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground text-center">
-                          Avg Days to Pay
-                        </TableHead>
+                        <TableHead className="font-semibold text-foreground">Customer Name</TableHead>
+                        <TableHead className="font-semibold text-foreground text-center">Jobs (90d)</TableHead>
+                        <TableHead className="font-semibold text-foreground text-right">Revenue (90d)</TableHead>
+                        <TableHead className="font-semibold text-foreground text-right">Avg Job</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.pmCandidates.map((c: PmCandidate) => (
                         <TableRow key={c.customerName} className="hover:bg-muted/30">
                           <TableCell className="font-medium">{c.customerName}</TableCell>
-                          <TableCell className="text-center tabular-nums font-semibold">
-                            {c.totalJobs}
-                          </TableCell>
+                          <TableCell className="text-center tabular-nums font-semibold">{c.totalJobs}</TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             {c.totalRevenue > 0 ? fmt$(c.totalRevenue) : "—"}
                           </TableCell>
-                          <TableCell className="text-center text-muted-foreground text-sm">
-                            {c.avgDaysToPay > 0 ? `${c.avgDaysToPay}d` : "N/A"}
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {c.totalRevenue > 0 ? fmt$(Math.round(c.totalRevenue / c.totalJobs)) : "—"}
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
-
-                {/* MRR projection */}
                 <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <p className="text-sm text-muted-foreground">
-                    Potential monthly recurring revenue at{" "}
-                    <span className="font-semibold text-foreground">$325/mo</span> per client:
+                    Potential MRR at <span className="font-semibold text-foreground">$325/mo</span> per client:
                   </p>
                   <p className="text-2xl font-bold text-primary tabular-nums">
                     {fmt$(data.pmCandidates.length * 325)}/mo
@@ -425,19 +385,14 @@ function RevenuePage() {
         {/* ================================================================
             SECTION 3 — Weekly Snapshot
         ================================================================ */}
-        <section className="pb-8">
+        <section>
           <div className="flex items-center gap-2 mb-4">
             <CalendarDays className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-bold uppercase tracking-tight text-foreground">
-              Weekly Snapshot
-            </h2>
+            <h2 className="text-xl font-bold uppercase tracking-tight text-foreground">Weekly Snapshot</h2>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <SnapshotCard
-              label="Jobs Completed"
-              value={String(data.weeklySnapshot.jobsCompleted)}
-            />
+            <SnapshotCard label="Jobs Completed" value={String(data.weeklySnapshot.jobsCompleted)} />
             <SnapshotCard
               label="Revenue Invoiced"
               value={fmt$(data.weeklySnapshot.revenueInvoiced)}
@@ -449,38 +404,220 @@ function RevenuePage() {
               highlight={data.weeklySnapshot.revenueCollected > 0}
               muted={data.weeklySnapshot.revenueCollected === 0}
             />
-            <SnapshotCard
-              label="Jobs Still Open"
-              value={String(data.weeklySnapshot.jobsOpen)}
-              danger={data.weeklySnapshot.jobsOpen > 0}
-            />
+            {/* Clickable card — scrolls to Open Jobs section */}
+            <button
+              onClick={scrollToOpenJobs}
+              className="text-left rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer"
+            >
+              <div className="pt-5 pb-4 px-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
+                  Jobs Still Open
+                </p>
+                <p className={`text-2xl sm:text-3xl font-bold tabular-nums ${
+                  data.weeklySnapshot.jobsOpen > 0 ? "text-destructive" : "text-foreground"
+                }`}>
+                  {data.weeklySnapshot.jobsOpen}
+                </p>
+                <p className="text-[10px] text-primary mt-1 font-medium">
+                  View all open jobs ↓
+                </p>
+              </div>
+            </button>
           </div>
 
           <p className="mt-3 text-xs text-muted-foreground text-center">
             Current week (Mon–Sun, America/Chicago). Jobs matched by scheduled start date.
           </p>
         </section>
+
+        {/* ================================================================
+            SECTION 4 — Open Jobs (drillable)
+        ================================================================ */}
+        <section ref={openJobsRef} className="pb-8 scroll-mt-4">
+          <OpenJobsSection openJobs={data.openJobs} />
+        </section>
+
       </main>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// SnapshotCard helper
+// Open Jobs section — searchable, filterable
+// ---------------------------------------------------------------------------
+
+const OPEN_STATUS_FILTERS = [
+  { label: "All", value: "all" },
+  { label: "Scheduled", value: "scheduled" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Unscheduled", value: "unscheduled" },
+] as const;
+
+function OpenJobsSection({ openJobs }: { openJobs: OpenJob[] }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const term = search.trim().toLowerCase();
+  const filtered = openJobs.filter((j) => {
+    if (statusFilter !== "all") {
+      const s = (j.status ?? "").toLowerCase();
+      if (statusFilter === "in_progress" && s !== "in_progress" && s !== "working") return false;
+      if (statusFilter === "scheduled" && s !== "scheduled") return false;
+      if (statusFilter === "unscheduled" && s !== "unscheduled") return false;
+    }
+    if (!term) return true;
+    return (
+      j.customerName.toLowerCase().includes(term) ||
+      j.jobNumber.toLowerCase().includes(term) ||
+      (j.address ?? "").toLowerCase().includes(term) ||
+      (j.city ?? "").toLowerCase().includes(term) ||
+      (j.jobType ?? "").toLowerCase().includes(term)
+    );
+  });
+
+  // Count by status for the filter pills
+  const counts = {
+    all: openJobs.length,
+    scheduled: openJobs.filter((j) => (j.status ?? "").toLowerCase() === "scheduled").length,
+    in_progress: openJobs.filter((j) => {
+      const s = (j.status ?? "").toLowerCase();
+      return s === "in_progress" || s === "working";
+    }).length,
+    unscheduled: openJobs.filter((j) => (j.status ?? "").toLowerCase() === "unscheduled").length,
+  };
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-primary" />
+          <h2 className="text-xl font-bold uppercase tracking-tight text-foreground">
+            Open Jobs
+          </h2>
+          <Badge className="bg-primary/10 text-primary hover:bg-primary/10 font-bold text-sm px-2">
+            {openJobs.length}
+          </Badge>
+          <span className="text-xs text-muted-foreground hidden sm:inline">· last 90 days</span>
+        </div>
+
+        {/* Search */}
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            className="pl-8 h-8 text-sm"
+            placeholder="Customer, job #, city, type…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Status filter pills */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {OPEN_STATUS_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setStatusFilter(f.value)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              statusFilter === f.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+            }`}
+          >
+            {f.label}
+            <span className={`ml-1.5 tabular-nums ${
+              statusFilter === f.value ? "text-primary-foreground/80" : "text-muted-foreground"
+            }`}>
+              {counts[f.value as keyof typeof counts] ?? 0}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {openJobs.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground text-sm">
+            No open jobs in the last 90 days. Run a sync to load data from HCP.
+          </CardContent>
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground text-sm">
+            No jobs match your filter.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="rounded-xl border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="font-semibold text-foreground">Customer</TableHead>
+                <TableHead className="font-semibold text-foreground">Job #</TableHead>
+                <TableHead className="font-semibold text-foreground hidden md:table-cell">Type</TableHead>
+                <TableHead className="font-semibold text-foreground hidden lg:table-cell">
+                  <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />Location</span>
+                </TableHead>
+                <TableHead className="font-semibold text-foreground text-center">Date</TableHead>
+                <TableHead className="font-semibold text-foreground text-center">Status</TableHead>
+                <TableHead className="font-semibold text-foreground text-right">Value</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((job: OpenJob) => (
+                <TableRow key={job.jobId} className="hover:bg-muted/30">
+                  <TableCell className="font-medium max-w-[180px] truncate">{job.customerName}</TableCell>
+                  <TableCell className="font-mono text-sm text-muted-foreground whitespace-nowrap">
+                    {job.jobNumber}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground hidden md:table-cell max-w-[140px] truncate">
+                    {job.jobType ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell max-w-[200px] truncate">
+                    {job.city ?? job.address ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-center text-sm whitespace-nowrap">
+                    {job.scheduledDate ? fmtDate(job.scheduledDate) : "—"}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {statusBadge(job.status)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {job.invoiceValue > 0 ? fmt$(job.invoiceValue) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="px-4 py-2.5 border-t border-border bg-muted/30 text-xs text-muted-foreground flex items-center justify-between">
+            <span>Showing {filtered.length} of {openJobs.length} open jobs</span>
+            {filtered.length > 0 && (
+              <span className="font-semibold text-foreground">
+                Total value: {fmt$(filtered.reduce((s, j) => s + j.invoiceValue, 0))}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SnapshotCard
 // ---------------------------------------------------------------------------
 
 function SnapshotCard({
-  label,
-  value,
-  highlight = false,
-  danger = false,
-  muted = false,
+  label, value, highlight = false, danger = false, muted = false,
 }: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  danger?: boolean;
-  muted?: boolean;
+  label: string; value: string; highlight?: boolean; danger?: boolean; muted?: boolean;
 }) {
   const valueClass = danger
     ? "text-destructive"
@@ -493,12 +630,8 @@ function SnapshotCard({
   return (
     <Card>
       <CardContent className="pt-5 pb-4 px-4">
-        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">
-          {label}
-        </p>
-        <p className={`text-2xl sm:text-3xl font-bold tabular-nums ${valueClass}`}>
-          {value}
-        </p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">{label}</p>
+        <p className={`text-2xl sm:text-3xl font-bold tabular-nums ${valueClass}`}>{value}</p>
       </CardContent>
     </Card>
   );
