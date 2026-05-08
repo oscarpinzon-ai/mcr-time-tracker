@@ -38,6 +38,8 @@ export const Route = createRootRoute({
       { name: "twitter:title", content: "MCR Parts Tracker" },
       { property: "og:description", content: "Parts tracking dashboard for HouseCall Pro Jobs and Estimates." },
       { name: "twitter:description", content: "Parts tracking dashboard for HouseCall Pro Jobs and Estimates." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ec08f626-b1ce-4f42-af15-e1694c01fcff/id-preview-acbad6ec--bf953439-6bcc-4ae3-9167-672a8ae3e57d.lovable.app-1778199830998.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ec08f626-b1ce-4f42-af15-e1694c01fcff/id-preview-acbad6ec--bf953439-6bcc-4ae3-9167-672a8ae3e57d.lovable.app-1778199830998.png" },
     ],
     links: [
       {
