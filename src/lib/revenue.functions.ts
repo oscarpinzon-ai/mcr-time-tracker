@@ -535,14 +535,17 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
         : { scheduled_start: fallbackStart };
 
       // When raw_data.customer.company_name is MCR's own name, replace it with the
-      // DB's backfilled customer_name (e.g. "Walgreen Drug Store # 06390") so that
-      // getCustomerName() returns the actual client instead of the address fallback.
+      // DB's backfilled customer_name ONLY when that value looks like a real business
+      // name (not an address). Address-shaped values (start with house number) fall
+      // through to parseSiteNameFromDescription → address fallback inside getCustomerName.
       const rawCustomer = raw.customer as HcpRevenueJob["customer"] | undefined;
       const rawCompany = rawCustomer?.company_name ?? "";
+      const dbName = (row.customer_name ?? "") as string;
+      const dbNameIsBusinessName = dbName.length > 0 && !/^\d{1,6}\s/.test(dbName.trim());
       const customerForDisplay: HcpRevenueJob["customer"] =
         rawCustomer && !MCR_NAMES_RE.test(rawCompany.trim())
           ? rawCustomer
-          : { company_name: row.customer_name ?? undefined };
+          : { company_name: dbNameIsBusinessName ? dbName : undefined };
 
       return {
         ...raw,
