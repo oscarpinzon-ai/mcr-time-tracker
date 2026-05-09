@@ -117,7 +117,13 @@ function getScheduledDate(job: Record<string, unknown>): string | null {
   const sched = job.schedule as Record<string, string> | undefined;
   const raw = sched?.scheduled_start;
   if (!raw) return null;
-  return toChicagoDateStr(new Date(raw));
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return toChicagoDateStr(d);
+  } catch {
+    return null;
+  }
 }
 
 function getJobType(job: Record<string, unknown>): string | null {
@@ -168,6 +174,7 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        try {
         // Read HCP API key from Supabase app_config (works in Lovable preview
         // where Cloudflare Worker secrets are not injected into process.env).
         // Fall back to process.env for production Cloudflare Worker deployments.
@@ -347,6 +354,16 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
           }),
           { headers: { "Content-Type": "application/json" } },
         );
+        } catch (err) {
+          return new Response(
+            JSON.stringify({
+              error: "Unhandled sync error",
+              detail: err instanceof Error ? err.message : String(err),
+              stack: err instanceof Error ? (err.stack ?? "").split("\n").slice(0, 5).join(" | ") : "",
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
+        }
       },
     },
   },
