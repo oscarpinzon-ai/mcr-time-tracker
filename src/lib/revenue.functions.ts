@@ -195,9 +195,12 @@ function parseSiteNameFromDescription(desc: string | undefined): string | null {
   const segments = desc.split(/ - /);
   if (segments.length < 2) return null;
   const last = segments[segments.length - 1].trim();
-  // Skip if it looks like a street address (starts with house number)
+  if (!last) return null;
+  // Skip if it looks like a street address (starts with a house number)
   if (/^\d{2,}\s/.test(last)) return null;
-  if (!last || isOwnCompany(last)) return null;
+  // Skip if it's a bare PO/WO reference ("PO# 41BCJR", "WO: 347743438")
+  if (/^(P\.?O\.?|W\.?O\.?)\s*[#:\s]\s*\S/i.test(last)) return null;
+  if (isOwnCompany(last)) return null;
   return last;
 }
 
