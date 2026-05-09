@@ -169,6 +169,11 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
             fetchUrl.searchParams.set("page_size", String(pageSize));
             fetchUrl.searchParams.set("scheduled_start_min", startDate);
             fetchUrl.searchParams.set("scheduled_start_max", endDate);
+            // Explicitly include all statuses so completed jobs are fetched.
+            // Without this HCP defaults to active/scheduled only.
+            for (const s of ["scheduled", "unscheduled", "in_progress", "complete", "needs_review"]) {
+              fetchUrl.searchParams.append("work_status[]", s);
+            }
 
             const res = await fetch(fetchUrl.toString(), {
               headers: {

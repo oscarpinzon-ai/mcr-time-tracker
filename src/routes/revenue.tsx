@@ -526,6 +526,7 @@ function OpenJobsSection({ openJobs }: { openJobs: OpenJob[] }) {
     return (
       j.customerName.toLowerCase().includes(term) ||
       j.jobNumber.toLowerCase().includes(term) ||
+      (j.locationName ?? "").toLowerCase().includes(term) ||
       (j.address ?? "").toLowerCase().includes(term) ||
       (j.city ?? "").toLowerCase().includes(term) ||
       (j.jobType ?? "").toLowerCase().includes(term)
@@ -638,7 +639,7 @@ function OpenJobsSection({ openJobs }: { openJobs: OpenJob[] }) {
                     {job.jobType ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden lg:table-cell max-w-[200px] truncate">
-                    {job.city ?? job.address ?? "—"}
+                    {job.locationName ?? job.city ?? job.address ?? "—"}
                   </TableCell>
                   <TableCell className="text-center text-sm whitespace-nowrap">
                     {job.scheduledDate ? fmtDate(job.scheduledDate) : "—"}

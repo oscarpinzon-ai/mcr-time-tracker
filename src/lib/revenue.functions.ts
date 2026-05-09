@@ -100,6 +100,7 @@ export type OpenJob = {
   jobType: string | null;
   address: string | null;
   city: string | null;
+  locationName: string | null;
   scheduledDate: string | null;
   status: string;
   invoiceValue: number;
@@ -217,6 +218,19 @@ function getCity(job: HcpRevenueJob): string | null {
   return job.address?.city ?? null;
 }
 
+/**
+ * Best human-readable location identifier for the Open Jobs table.
+ * Priority: location.name (enterprise) → address.name (property name like "Target Round Rock")
+ * → job_site_name (our parsed field from service line item) → city.
+ */
+function getLocationName(job: HcpRevenueJob, jobSiteName?: string | null): string | null {
+  const locName = job.location?.name ?? job.location?.address?.name;
+  if (locName && !isOwnCompany(locName)) return locName;
+  if (job.address?.name && !isOwnCompany(job.address.name)) return job.address.name;
+  if (jobSiteName) return jobSiteName;
+  return job.address?.city ?? null;
+}
+
 /** HCP returns monetary values in cents — always divide by 100 before display. */
 function getInvoiceTotal(job: HcpRevenueJob): number {
   let raw = 0;
@@ -308,7 +322,11 @@ function getCurrentWeekBoundsCDT(): { weekStart: string; weekEnd: string } {
 // Core processing
 // ---------------------------------------------------------------------------
 
-function processRevenueData(jobs: HcpRevenueJob[], cacheDaysAvailable: number): RevenueData {
+function processRevenueData(
+  jobs: HcpRevenueJob[],
+  cacheDaysAvailable: number,
+  jobSiteNames: Map<string, string | null>,
+): RevenueData {
   const now = new Date();
   const todayStr = toChicagoDateStr(now);
   const ninetyDaysAgoStr = toChicagoDateStr(new Date(now.getTime() - 90 * 86_400_000));
@@ -419,6 +437,7 @@ function processRevenueData(jobs: HcpRevenueJob[], cacheDaysAvailable: number): 
       jobType: getJobType(job),
       address: getAddressLine(job),
       city: getCity(job),
+      locationName: getLocationName(job, jobSiteNames.get(job.id)),
       scheduledDate: job.schedule?.scheduled_start
         ? toChicagoDateStr(new Date(job.schedule.scheduled_start))
         : null,
@@ -450,18 +469,21 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
 
     const { data: rows, error } = await supabase
       .from("work_orders")
-      .select("hcp_id, number, customer_name, hcp_status, scheduled_date, raw_data")
+      .select("hcp_id, number, customer_name, hcp_status, scheduled_date, raw_data, job_site_name")
       .order("scheduled_date", { ascending: false });
 
     if (error) throw new Error(`Supabase error: ${error.message}`);
 
     const allRows = rows ?? [];
 
+    const jobSiteNames = new Map<string, string | null>();
     const jobs: HcpRevenueJob[] = allRows.map((row) => {
       const raw = (row.raw_data ?? {}) as Record<string, unknown>;
+      const hcpId = String(row.hcp_id);
+      if (row.job_site_name) jobSiteNames.set(hcpId, row.job_site_name as string);
       return {
         ...raw,
-        id: String(row.hcp_id),
+        id: hcpId,
         work_status: (raw.work_status as string | undefined) ?? row.hcp_status ?? undefined,
         customer: (raw.customer as HcpRevenueJob["customer"]) ?? {
           company_name: row.customer_name ?? undefined,
@@ -479,6 +501,6 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
       cacheDaysAvailable = Math.floor((Date.now() - oldest.getTime()) / 86_400_000);
     }
 
-    return processRevenueData(jobs, cacheDaysAvailable);
+    return processRevenueData(jobs, cacheDaysAvailable, jobSiteNames);
   },
 );
