@@ -12,6 +12,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { parseServiceReference } from "@/lib/service-reference";
 
 const HCP_BASE = "https://api.housecallpro.com";
 
@@ -227,21 +228,28 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
           );
         }
 
-        const rows = allJobs.map((job) => ({
-          hcp_id: String(job.id),
-          number: String(
-            job.invoice_number ?? job.job_number ?? job.id,
-          ),
-          customer_name: getCustomerName(job),
-          hcp_type: "job",
-          description: getJobType(job),
-          address: getJobAddress(job),
-          hcp_status: mapStatus(job.work_status as string | undefined),
-          scheduled_date: getScheduledDate(job),
-          assigned_to: (getAssignedEmployeeIds(job) ?? []).join(",") || null,
-          last_synced_at: new Date().toISOString(),
-          raw_data: job,
-        }));
+        const rows = allJobs.map((job) => {
+          const serviceRef = getJobType(job);
+          const parsed = parseServiceReference(serviceRef);
+          return {
+            hcp_id: String(job.id),
+            number: String(
+              job.invoice_number ?? job.job_number ?? job.id,
+            ),
+            customer_name: getCustomerName(job),
+            hcp_type: "job",
+            description: serviceRef,
+            work_order_number: parsed.work_order_number,
+            purchase_order_number: parsed.purchase_order_number,
+            job_site_name: parsed.job_site_name,
+            address: getJobAddress(job),
+            hcp_status: mapStatus(job.work_status as string | undefined),
+            scheduled_date: getScheduledDate(job),
+            assigned_to: (getAssignedEmployeeIds(job) ?? []).join(",") || null,
+            last_synced_at: new Date().toISOString(),
+            raw_data: job,
+          };
+        });
 
         // Determine which hcp_ids already exist (to distinguish insert vs update)
         const allIds = rows.map((r) => r.hcp_id);

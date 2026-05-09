@@ -16,6 +16,9 @@ type Preview = {
   customer_name: string | null;
   address: string | null;
   description: string | null;
+  work_order_number: string | null;
+  purchase_order_number: string | null;
+  job_site_name: string | null;
   hcp_status: string | null;
   scheduled_date: string | null;
   assigned_to: string | null;
@@ -107,7 +110,24 @@ export function WorkOrderLookup({ onImported }: { onImported?: (id: string) => v
                 <p className="font-bold text-lg">
                   {preview.hcp_type === "job" ? "Job" : "Estimate"} #{preview.number}
                 </p>
-                <p className="text-sm">{preview.customer_name || "—"}</p>
+                {preview.job_site_name && (
+                  <p className="text-sm font-semibold">{preview.job_site_name}</p>
+                )}
+                {(preview.work_order_number || preview.purchase_order_number) && (
+                  <div className="flex gap-3 mt-0.5">
+                    {preview.work_order_number && (
+                      <span className="text-xs text-muted-foreground">
+                        WO# <span className="text-foreground font-medium">{preview.work_order_number}</span>
+                      </span>
+                    )}
+                    {preview.purchase_order_number && (
+                      <span className="text-xs text-muted-foreground">
+                        PO# <span className="text-foreground font-medium">{preview.purchase_order_number}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">{preview.customer_name || "—"}</p>
                 <p className="text-xs text-muted-foreground">{preview.address || ""}</p>
                 {preview.hcp_status && (
                   <p className="text-xs mt-1">

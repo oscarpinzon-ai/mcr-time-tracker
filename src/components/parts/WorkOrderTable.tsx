@@ -55,7 +55,25 @@ export function WorkOrderTable({
                     <span className="text-xs text-muted-foreground">· {wo.hcp_status}</span>
                   )}
                 </div>
-                <p className="text-sm font-medium mt-1">{wo.customer_name || "—"}</p>
+                {wo.job_site_name ? (
+                  <p className="text-sm font-semibold mt-1">{wo.job_site_name}</p>
+                ) : (
+                  <p className="text-sm font-medium mt-1">{wo.customer_name || "—"}</p>
+                )}
+                {(wo.work_order_number || wo.purchase_order_number) && (
+                  <div className="flex gap-3 mt-0.5">
+                    {wo.work_order_number && (
+                      <span className="text-xs text-muted-foreground">
+                        WO# <span className="text-foreground font-medium">{wo.work_order_number}</span>
+                      </span>
+                    )}
+                    {wo.purchase_order_number && (
+                      <span className="text-xs text-muted-foreground">
+                        PO# <span className="text-foreground font-medium">{wo.purchase_order_number}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">{wo.address || ""}</p>
               </div>
               <div className="flex flex-wrap gap-1.5 max-w-md">

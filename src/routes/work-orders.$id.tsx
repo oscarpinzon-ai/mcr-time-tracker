@@ -124,6 +124,28 @@ function WorkOrderDetail() {
                         <Badge variant="outline">{workOrder.hcp_status}</Badge>
                       )}
                     </div>
+
+                    {workOrder.job_site_name && (
+                      <p className="font-semibold text-lg mt-2">{workOrder.job_site_name}</p>
+                    )}
+
+                    {(workOrder.work_order_number || workOrder.purchase_order_number) && (
+                      <div className="flex flex-wrap gap-4 mt-1">
+                        {workOrder.work_order_number && (
+                          <span className="text-sm">
+                            <span className="text-muted-foreground font-medium">WO#</span>{" "}
+                            <strong>{workOrder.work_order_number}</strong>
+                          </span>
+                        )}
+                        {workOrder.purchase_order_number && (
+                          <span className="text-sm">
+                            <span className="text-muted-foreground font-medium">PO#</span>{" "}
+                            <strong>{workOrder.purchase_order_number}</strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <p className="font-medium mt-2">{workOrder.customer_name || "—"}</p>
                     <p className="text-sm text-muted-foreground">{workOrder.address || ""}</p>
                     {workOrder.scheduled_date && (
@@ -135,9 +157,6 @@ function WorkOrderDetail() {
                       <p className="text-xs">
                         Assigned: <strong>{workOrder.assigned_to}</strong>
                       </p>
-                    )}
-                    {workOrder.description && (
-                      <p className="text-sm mt-2 max-w-2xl">{workOrder.description}</p>
                     )}
                   </div>
                   <div className="flex gap-2">

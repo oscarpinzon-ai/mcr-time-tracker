@@ -6,6 +6,9 @@ export type WorkOrder = {
   customer_name: string | null;
   address: string | null;
   description: string | null;
+  work_order_number: string | null;
+  purchase_order_number: string | null;
+  job_site_name: string | null;
   hcp_status: string | null;
   scheduled_date: string | null;
   assigned_to: string | null;

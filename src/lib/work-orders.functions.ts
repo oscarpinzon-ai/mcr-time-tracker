@@ -12,6 +12,7 @@ import {
   getEstimateCustomer,
   type HcpEstimateResponse,
 } from "@/lib/hcp-client";
+import { parseServiceReference } from "@/lib/service-reference";
 
 function getServerSupabase() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
@@ -38,6 +39,9 @@ type Normalized = {
   customer_name: string | null;
   address: string | null;
   description: string | null;
+  work_order_number: string | null;
+  purchase_order_number: string | null;
+  job_site_name: string | null;
   hcp_status: string | null;
   scheduled_date: string | null;
   assigned_to: string | null;
@@ -54,6 +58,8 @@ async function lookup(type: "job" | "estimate", number: string): Promise<Normali
         ?.map((e) => `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim())
         .filter(Boolean)
         .join(", ") || null;
+    const serviceRef = job.work_line_items?.[0]?.name ?? job.description ?? null;
+    const parsed = parseServiceReference(serviceRef);
     return {
       hcp_id: job.id,
       hcp_type: "job",
@@ -65,7 +71,10 @@ async function lookup(type: "job" | "estimate", number: string): Promise<Normali
         ).replace(/^#/, ""),
       customer_name: getCustomerName(job),
       address: getJobAddress(job),
-      description: job.description ?? null,
+      description: serviceRef,
+      work_order_number: parsed.work_order_number,
+      purchase_order_number: parsed.purchase_order_number,
+      job_site_name: parsed.job_site_name,
       hcp_status: job.work_status ?? null,
       scheduled_date: getScheduledDate(job),
       assigned_to: assigned,
@@ -160,6 +169,9 @@ export const refreshWorkOrder = createServerFn({ method: "POST" })
           customer_name: normalized.customer_name,
           address: normalized.address,
           description: normalized.description,
+          work_order_number: normalized.work_order_number,
+          purchase_order_number: normalized.purchase_order_number,
+          job_site_name: normalized.job_site_name,
           hcp_status: normalized.hcp_status,
           scheduled_date: normalized.scheduled_date,
           assigned_to: normalized.assigned_to,
