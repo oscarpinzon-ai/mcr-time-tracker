@@ -128,8 +128,7 @@ function RevenueHeader() {
 
 type SyncSummary = {
   fetched: number;
-  inserted: number;
-  updated: number;
+  upserted: number;
   failed: number;
   syncedAt: string;
   errors?: string[];
@@ -168,8 +167,7 @@ function RevenuePage() {
       const totalUpserted = json.upserted ?? ((json.inserted ?? 0) + (json.updated ?? 0));
       setLastSync({
         fetched: json.fetched ?? 0,
-        inserted: json.inserted ?? 0,
-        updated: json.updated ?? 0,
+        upserted: totalUpserted,
         failed: json.failed ?? 0,
         syncedAt: json.syncedAt ?? new Date().toISOString(),
         errors: json.errors,
@@ -263,10 +261,7 @@ function RevenuePage() {
               Fetched <span className="font-bold text-foreground tabular-nums">{lastSync.fetched}</span>
             </span>
             <span className="text-green-700">
-              Inserted <span className="font-bold tabular-nums">{lastSync.inserted}</span>
-            </span>
-            <span className="text-blue-700">
-              Updated <span className="font-bold tabular-nums">{lastSync.updated}</span>
+              Upserted <span className="font-bold tabular-nums">{lastSync.upserted}</span>
             </span>
             <span className={lastSync.failed > 0 ? "text-destructive" : "text-muted-foreground"}>
               Failed <span className="font-bold tabular-nums">{lastSync.failed}</span>
