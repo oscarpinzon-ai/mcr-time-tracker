@@ -37,7 +37,8 @@ function toChicagoDateStr(date: Date): string {
 function mapStatus(hcpStatus: string | undefined): string {
   if (!hcpStatus) return "scheduled";
   const s = hcpStatus.toLowerCase();
-  if (s === "complete" || s === "completed") return "completed";
+  // HCP uses "complete rated" and "complete unrated" — both mean completed
+  if (s.startsWith("complete")) return "completed";
   if (s === "in_progress" || s === "working") return "in_progress";
   if (s === "scheduled" || s === "unscheduled") return "scheduled";
   if (s.includes("cancel")) return "cancelled";
@@ -115,8 +116,14 @@ function getScheduledDate(job: Record<string, unknown>): string | null {
 }
 
 function getJobType(job: Record<string, unknown>): string | null {
+  // work_line_items is only present on individual job fetches, not the bulk list endpoint
   const items = job.work_line_items as Array<{ name?: string }> | undefined;
   if (items?.[0]?.name) return items[0].name;
+  // Fallback to description / notes (available on the list endpoint)
+  const desc = job.description as string | undefined;
+  if (desc?.trim()) return desc.trim();
+  const notes = job.notes as string | undefined;
+  if (notes?.trim()) return notes.trim();
   const tags = job.tags as string[] | undefined;
   if (tags?.[0]) return tags[0];
   return null;
@@ -204,7 +211,12 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
             fetchUrl.searchParams.set("scheduled_start_max", endDate);
             // Explicitly include all statuses so completed jobs are fetched.
             // Without this HCP defaults to active/scheduled only.
-            for (const s of ["scheduled", "unscheduled", "in_progress", "complete", "needs_review"]) {
+            // HCP uses "complete_rated" / "complete_unrated" as filter values
+            // even though the response field says "complete rated" (with space).
+            for (const s of [
+              "scheduled", "unscheduled", "in_progress", "needs_review",
+              "complete", "complete_rated", "complete_unrated",
+            ]) {
               fetchUrl.searchParams.append("work_status[]", s);
             }
 

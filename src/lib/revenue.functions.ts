@@ -296,7 +296,8 @@ function getInvoiceSentAt(job: HcpRevenueJob): Date | null {
 
 function isCompleted(job: HcpRevenueJob): boolean {
   const s = (job.work_status ?? "").toLowerCase();
-  return s === "complete" || s === "completed";
+  // HCP uses "complete rated", "complete unrated", "complete", "completed"
+  return s === "complete" || s === "completed" || s.startsWith("complete ");
 }
 
 function isCancelled(job: HcpRevenueJob): boolean {
