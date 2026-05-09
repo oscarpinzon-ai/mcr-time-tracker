@@ -95,6 +95,9 @@ async function lookup(type: "job" | "estimate", number: string): Promise<Normali
     customer_name: getEstimateCustomer(est),
     address: getEstimateAddress(est),
     description: est.message ?? null,
+    work_order_number: null,
+    purchase_order_number: null,
+    job_site_name: null,
     hcp_status: est.work_status ?? est.status ?? null,
     scheduled_date: est.schedule?.scheduled_start
       ? new Date(est.schedule.scheduled_start).toISOString().slice(0, 10)
