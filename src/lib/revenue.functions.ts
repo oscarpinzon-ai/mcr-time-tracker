@@ -534,13 +534,21 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
         ? { ...rawSchedule, scheduled_start: rawSchedule.scheduled_start ?? fallbackStart }
         : { scheduled_start: fallbackStart };
 
+      // When raw_data.customer.company_name is MCR's own name, replace it with the
+      // DB's backfilled customer_name (e.g. "Walgreen Drug Store # 06390") so that
+      // getCustomerName() returns the actual client instead of the address fallback.
+      const rawCustomer = raw.customer as HcpRevenueJob["customer"] | undefined;
+      const rawCompany = rawCustomer?.company_name ?? "";
+      const customerForDisplay: HcpRevenueJob["customer"] =
+        rawCustomer && !MCR_NAMES_RE.test(rawCompany.trim())
+          ? rawCustomer
+          : { company_name: row.customer_name ?? undefined };
+
       return {
         ...raw,
         id: hcpId,
         work_status: (raw.work_status as string | undefined) ?? row.hcp_status ?? undefined,
-        customer: (raw.customer as HcpRevenueJob["customer"]) ?? {
-          company_name: row.customer_name ?? undefined,
-        },
+        customer: customerForDisplay,
         schedule,
       } as HcpRevenueJob;
     });
