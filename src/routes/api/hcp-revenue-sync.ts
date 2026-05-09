@@ -1,8 +1,11 @@
 /**
- * POST /api/hcp-revenue-sync
+ * GET /api/hcp-revenue-sync
  * Fetches 90 days of jobs from HCP and upserts them into hcp_jobs_cache.
  * Uses server.handlers to get the full Cloudflare Worker timeout (not the
  * shorter createServerFn budget).
+ *
+ * HCP API key is read from Supabase app_config table (key='hcp_api_key')
+ * so it works in Lovable preview (which doesn't inject Cloudflare secrets).
  *
  * Query params (all optional):
  *   days=90      — how many days back to fetch (default 90, max 365)
@@ -113,10 +116,29 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const apiKey = process.env.HCP_API_KEY;
+        // Read HCP API key from Supabase app_config (works in Lovable preview
+        // where Cloudflare Worker secrets are not injected into process.env).
+        // Fall back to process.env for production Cloudflare Worker deployments.
+        let apiKey = process.env.HCP_API_KEY ?? "";
+        if (!apiKey) {
+          try {
+            const cfgClient = getSupabase();
+            const { data: cfg } = await cfgClient
+              .from("app_config")
+              .select("value")
+              .eq("key", "hcp_api_key")
+              .single();
+            apiKey = cfg?.value ?? "";
+          } catch {
+            // ignore — will fail below with a clear message
+          }
+        }
         if (!apiKey) {
           return new Response(
-            JSON.stringify({ error: "HCP_API_KEY not set" }),
+            JSON.stringify({
+              error:
+                "HCP API key not found. Add a row with key='hcp_api_key' to the app_config table in Supabase.",
+            }),
             { status: 500, headers: { "Content-Type": "application/json" } },
           );
         }
