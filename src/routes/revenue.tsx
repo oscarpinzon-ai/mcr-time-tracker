@@ -155,7 +155,7 @@ function RevenuePage() {
     setSyncing(true);
     const toastId = toast.loading("Syncing 90 days of jobs from HouseCall Pro…");
     try {
-      const res = await fetch("/api/hcp-revenue-sync?days=90", { method: "POST" });
+      const res = await fetch("/api/hcp-revenue-sync?days=90");
       const json = await res.json() as {
         ok?: boolean; fetched?: number; inserted?: number; updated?: number;
         failed?: number; syncedAt?: string; errors?: string[]; error?: string;

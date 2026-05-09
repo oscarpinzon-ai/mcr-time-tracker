@@ -112,7 +112,7 @@ function getSupabase() {
 export const Route = createFileRoute("/api/hcp-revenue-sync")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      GET: async ({ request }) => {
         const apiKey = process.env.HCP_API_KEY;
         if (!apiKey) {
           return new Response(
