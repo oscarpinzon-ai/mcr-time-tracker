@@ -47,13 +47,18 @@ function mapStatus(hcpStatus: string | undefined): string {
 const MCR_RE = /modern compactor repair|^mcr$/i;
 function isOwnCompany(s: string): boolean { return MCR_RE.test(s.trim()); }
 
+// A parsed segment like "12601 TECH RIDGE BLVD" is an address, not a business name.
+function looksLikeAddress(s: string): boolean {
+  return /^\d+\s/.test(s.trim());
+}
+
 function getCustomerName(job: Record<string, unknown>): string | null {
   // Try location/address name first (most specific: "Target Round Rock")
   const loc = job.location as Record<string, unknown> | undefined;
   const locName = (loc?.name ?? (loc?.address as Record<string,string>|undefined)?.name) as string | undefined;
   if (locName && !isOwnCompany(locName)) return locName;
 
-  const addr = job.address as Record<string, string> | undefined;
+  const addr = job.address as Record<string, string | undefined> | undefined;
   if (addr?.name && !isOwnCompany(addr.name)) return addr.name;
 
   const c = job.customer as Record<string, string> | undefined;
@@ -66,6 +71,34 @@ function getCustomerName(job: Record<string, unknown>): string | null {
   if (addr?.street && addr?.city) return `${addr.street}, ${addr.city}`;
   if (addr?.city) return addr.city;
   return null;
+}
+
+/**
+ * Extracts the best job site name using multiple sources:
+ * 1. Last segment of the line item description (if it looks like a business name)
+ * 2. address.notes / address.nickname (HCP stores "Walgreens 09679"-style labels here)
+ * 3. address.name
+ * 4. location.name (HCP's location object for multi-site customers)
+ * 5. Parsed segment even if it looks like an address (last resort)
+ */
+function getJobSiteName(job: Record<string, unknown>, parsedSiteName: string | null): string | null {
+  // Prefer a segment that looks like a real business name (not a street address)
+  if (parsedSiteName && !looksLikeAddress(parsedSiteName)) return parsedSiteName;
+
+  const addr = job.address as Record<string, string | undefined> | undefined;
+
+  // HCP often stores the location label (e.g. "Walgreens 09679") in address.notes
+  const notes = addr?.notes ?? addr?.note ?? addr?.nickname;
+  if (notes?.trim() && !isOwnCompany(notes)) return notes.trim();
+
+  if (addr?.name && !isOwnCompany(addr.name) && !looksLikeAddress(addr.name)) return addr.name;
+
+  const loc = job.location as Record<string, unknown> | undefined;
+  const locName = (loc?.name ?? (loc?.address as Record<string,string>|undefined)?.name) as string | undefined;
+  if (locName && !isOwnCompany(locName) && !looksLikeAddress(locName)) return locName;
+
+  // Fall back to the parsed segment even if it's an address string
+  return parsedSiteName;
 }
 
 function getJobAddress(job: Record<string, unknown>): string | null {
@@ -246,7 +279,7 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
             description: serviceRef,
             work_order_number: parsed.work_order_number,
             purchase_order_number: parsed.purchase_order_number,
-            job_site_name: parsed.job_site_name,
+            job_site_name: getJobSiteName(job, parsed.job_site_name),
             address: getJobAddress(job),
             hcp_status: mapStatus(job.work_status as string | undefined),
             scheduled_date: getScheduledDate(job),

@@ -38,6 +38,9 @@ type HcpRevenueJob = {
   };
   address?: {
     name?: string;   // property/location name e.g. "Target Round Rock"
+    notes?: string;  // site label e.g. "Walgreens 09679" — shown below address in HCP UI
+    note?: string;
+    nickname?: string;
     street?: string;
     city?: string;
     state?: string;
@@ -218,16 +221,30 @@ function getCity(job: HcpRevenueJob): string | null {
   return job.address?.city ?? null;
 }
 
+function looksLikeStreetAddress(s: string): boolean {
+  return /^\d+\s/.test(s.trim());
+}
+
 /**
  * Best human-readable location identifier for the Open Jobs table.
- * Priority: location.name (enterprise) → address.name (property name like "Target Round Rock")
- * → job_site_name (our parsed field from service line item) → city.
+ * Priority: location.name → address.name → address.notes (HCP stores "Walgreens 09679" here)
+ * → job_site_name from DB (parsed from service line item, skipped if it looks like a street)
+ * → city.
  */
 function getLocationName(job: HcpRevenueJob, jobSiteName?: string | null): string | null {
   const locName = job.location?.name ?? job.location?.address?.name;
-  if (locName && !isOwnCompany(locName)) return locName;
-  if (job.address?.name && !isOwnCompany(job.address.name)) return job.address.name;
-  if (jobSiteName) return jobSiteName;
+  if (locName && !isOwnCompany(locName) && !looksLikeStreetAddress(locName)) return locName;
+
+  if (job.address?.name && !isOwnCompany(job.address.name) && !looksLikeStreetAddress(job.address.name))
+    return job.address.name;
+
+  // HCP stores site labels (e.g. "Walgreens 09679") in address.notes
+  const notes = job.address?.notes ?? job.address?.note ?? job.address?.nickname;
+  if (notes?.trim() && !isOwnCompany(notes)) return notes.trim();
+
+  // DB-stored job_site_name (parsed from the service line item last segment)
+  if (jobSiteName && !looksLikeStreetAddress(jobSiteName)) return jobSiteName;
+
   return job.address?.city ?? null;
 }
 
@@ -481,6 +498,18 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
       const raw = (row.raw_data ?? {}) as Record<string, unknown>;
       const hcpId = String(row.hcp_id);
       if (row.job_site_name) jobSiteNames.set(hcpId, row.job_site_name as string);
+
+      // Build a schedule object that always has scheduled_start populated.
+      // raw.schedule may exist as an object but have scheduled_start: null (HCP clears
+      // it for completed jobs), so we can't just use ?? — we need to fill the gap.
+      const rawSchedule = raw.schedule as HcpRevenueJob["schedule"] | undefined;
+      const fallbackStart = row.scheduled_date
+        ? `${row.scheduled_date}T12:00:00`
+        : undefined;
+      const schedule: HcpRevenueJob["schedule"] = rawSchedule
+        ? { ...rawSchedule, scheduled_start: rawSchedule.scheduled_start ?? fallbackStart }
+        : { scheduled_start: fallbackStart };
+
       return {
         ...raw,
         id: hcpId,
@@ -488,9 +517,7 @@ export const fetchRevenueData = createServerFn({ method: "GET" }).handler(
         customer: (raw.customer as HcpRevenueJob["customer"]) ?? {
           company_name: row.customer_name ?? undefined,
         },
-        schedule: (raw.schedule as HcpRevenueJob["schedule"]) ?? {
-          scheduled_start: row.scheduled_date ? `${row.scheduled_date}T12:00:00` : undefined,
-        },
+        schedule,
       } as HcpRevenueJob;
     });
 
