@@ -157,13 +157,15 @@ function RevenuePage() {
     try {
       const res = await fetch("/api/hcp-revenue-sync?days=90");
       const json = await res.json() as {
-        ok?: boolean; fetched?: number; inserted?: number; updated?: number;
-        failed?: number; syncedAt?: string; errors?: string[]; error?: string;
+        ok?: boolean; fetched?: number; upserted?: number; inserted?: number; updated?: number;
+        failed?: number; syncedAt?: string; errors?: string[]; error?: string; detail?: string;
       };
       if (!res.ok || !json.ok) {
-        toast.error(`Sync failed: ${json.error ?? "unknown error"}`, { id: toastId });
+        const msg = [json.error, json.detail, ...(json.errors ?? [])].filter(Boolean).join(" — ");
+        toast.error(`Sync failed: ${msg || "unknown error"}`, { id: toastId });
         return;
       }
+      const totalUpserted = json.upserted ?? ((json.inserted ?? 0) + (json.updated ?? 0));
       setLastSync({
         fetched: json.fetched ?? 0,
         inserted: json.inserted ?? 0,
@@ -173,7 +175,7 @@ function RevenuePage() {
         errors: json.errors,
       });
       toast.success(
-        `Synced ${json.fetched ?? 0} jobs · +${json.inserted ?? 0} new, ~${json.updated ?? 0} updated${json.failed ? `, ${json.failed} failed` : ""}`,
+        `Synced ${json.fetched ?? 0} jobs · ${totalUpserted} upserted${json.failed ? `, ${json.failed} failed` : ""}`,
         { id: toastId },
       );
       setData(null);
