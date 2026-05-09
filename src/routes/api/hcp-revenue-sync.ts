@@ -94,8 +94,8 @@ function getJobSiteName(job: Record<string, unknown>, parsedSiteName: string | n
   const addr = job.address as Record<string, string | undefined> | undefined;
 
   // HCP often stores the location label (e.g. "Walgreens 09679") in address.notes
-  const notes = addr?.notes ?? addr?.note ?? addr?.nickname;
-  if (notes?.trim() && !isOwnCompany(notes)) return notes.trim();
+  const notes = (addr?.notes ?? addr?.note ?? addr?.nickname) as string | undefined;
+  if (typeof notes === "string" && notes.trim() && !isOwnCompany(notes)) return notes.trim();
 
   if (addr?.name && !isOwnCompany(addr.name) && !looksLikeAddress(addr.name)) return addr.name;
 
