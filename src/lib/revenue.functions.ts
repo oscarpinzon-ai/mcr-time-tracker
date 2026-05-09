@@ -155,11 +155,11 @@ function isOwnCompany(s: string): boolean {
 
 /**
  * Returns the best human-readable customer/site name for a job.
- * Priority: location.name > address.name > customer company > street+city.
- * Filters out MCR's own company name which HCP sometimes returns as customer.
+ * Priority: location.name > address.name > customer company > description site > street+city.
+ * Filters out MCR's own company name which HCP returns as company_name on all jobs.
  */
 function getCustomerName(job: HcpRevenueJob): string {
-  // 1. Enterprise location object (HCP sometimes wraps address in a location)
+  // 1. Enterprise location object
   const locName = job.location?.name ?? job.location?.address?.name;
   if (locName && !isOwnCompany(locName)) return locName;
 
@@ -176,7 +176,13 @@ function getCustomerName(job: HcpRevenueJob): string {
     .filter(Boolean).join(" ").trim();
   if (full && !isOwnCompany(full)) return full;
 
-  // 5. Street + city as a unique location identifier
+  // 5. Parse description for site name — HCP stores
+  //    "WO: 347743438 | Priority: 72 Hours | PO # 107246-01 - 1015 N TOWN EAST BLVD - Walgreen Drug Store # 06390"
+  //    The last " - " segment is the real site/chain name.
+  const siteName = parseSiteNameFromDescription(job.description);
+  if (siteName) return siteName;
+
+  // 6. Street + city as last resort
   const a = job.address;
   if (a?.street && a?.city) return `${a.street}, ${a.city}`;
   if (a?.city) return a.city;
@@ -184,19 +190,33 @@ function getCustomerName(job: HcpRevenueJob): string {
   return "Unknown";
 }
 
+function parseSiteNameFromDescription(desc: string | undefined): string | null {
+  if (!desc) return null;
+  const segments = desc.split(/ - /);
+  if (segments.length < 2) return null;
+  const last = segments[segments.length - 1].trim();
+  // Skip if it looks like a street address (starts with house number)
+  if (/^\d{2,}\s/.test(last)) return null;
+  if (!last || isOwnCompany(last)) return null;
+  return last;
+}
+
 /**
  * Returns a site-level key for PM candidate grouping.
- * More granular than company name — splits Synergy/Target Austin from Synergy/Target San Antonio.
+ * More granular than company name — "Walgreen Drug Store # 06390" groups separately from "# 09679".
  */
 function getSiteName(job: HcpRevenueJob): string {
   const locName = job.location?.name ?? job.location?.address?.name;
   if (locName && !isOwnCompany(locName)) return locName;
   if (job.address?.name && !isOwnCompany(job.address.name)) return job.address.name;
 
+  // Use description-parsed site name (e.g. "Walgreen Drug Store # 06390")
+  const siteName = parseSiteNameFromDescription(job.description);
+  if (siteName) return siteName;
+
   const a = job.address;
   if (a?.street && a?.city) return `${a.street}, ${a.city}`;
   if (a?.city) {
-    // Company + city to distinguish e.g. "Synergy – Austin" from "Synergy – San Antonio"
     const company = job.customer?.company_name;
     if (company && !isOwnCompany(company)) return `${company} — ${a.city}`;
     return a.city;

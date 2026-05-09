@@ -53,8 +53,9 @@ function looksLikeAddress(s: string): boolean {
   return /^\d+\s/.test(s.trim());
 }
 
-function getCustomerName(job: Record<string, unknown>): string | null {
-  // Try location/address name first (most specific: "Target Round Rock")
+// siteName is pre-computed from getJobSiteName — pass it in so we can use it here
+// before falling back to the raw address.
+function getCustomerName(job: Record<string, unknown>, siteName?: string | null): string | null {
   const loc = job.location as Record<string, unknown> | undefined;
   const locName = (loc?.name ?? (loc?.address as Record<string,string>|undefined)?.name) as string | undefined;
   if (locName && !isOwnCompany(locName)) return locName;
@@ -68,7 +69,11 @@ function getCustomerName(job: Record<string, unknown>): string | null {
   const full = [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim();
   if (full && !isOwnCompany(full)) return full;
 
-  // Fallback: street + city as site identifier
+  // Use the parsed site name (e.g. "Walgreen Drug Store # 06390") when HCP's
+  // customer.company_name is MCR's own name and nothing else is available.
+  if (siteName && !looksLikeAddress(siteName)) return siteName;
+
+  // Last resort: street + city as location identifier
   if (addr?.street && addr?.city) return `${addr.street}, ${addr.city}`;
   if (addr?.city) return addr.city;
   return null;
@@ -281,17 +286,19 @@ export const Route = createFileRoute("/api/hcp-revenue-sync")({
         const rows = allJobs.map((job) => {
           const serviceRef = getJobType(job);
           const parsed = parseServiceReference(serviceRef);
+          // Compute site name first so customer_name can use it as fallback
+          const siteName = getJobSiteName(job, parsed.job_site_name);
           return {
             hcp_id: String(job.id),
             number: String(
               job.invoice_number ?? job.job_number ?? job.id,
             ),
-            customer_name: getCustomerName(job),
+            customer_name: getCustomerName(job, siteName),
             hcp_type: "job",
             description: serviceRef,
             work_order_number: parsed.work_order_number,
             purchase_order_number: parsed.purchase_order_number,
-            job_site_name: getJobSiteName(job, parsed.job_site_name),
+            job_site_name: siteName,
             address: getJobAddress(job),
             hcp_status: mapStatus(job.work_status as string | undefined),
             scheduled_date: getScheduledDate(job),
