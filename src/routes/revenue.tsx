@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ArrowLeft, AlertTriangle, TrendingUp, CalendarDays, Loader2,
   AlertCircle, RefreshCw, ClipboardList, Search, X, MapPin,
+  FileDown, Sheet,
 } from "lucide-react";
 import { MCRLogo } from "@/components/MCRLogo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { fetchRevenueData } from "@/lib/revenue.functions";
 import type { ReceivableJob, PmCandidate, RevenueData, OpenJob } from "@/lib/revenue.functions";
+import { exportRevenueExcel, exportRevenuePDF } from "@/lib/export-reports";
 
 // ---------------------------------------------------------------------------
 // Route
@@ -138,6 +140,7 @@ function RevenuePage() {
   const [data, setData] = useState<RevenueData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [lastSync, setLastSync] = useState<SyncSummary | null>(null);
   const openJobsRef = useRef<HTMLElement>(null);
 
@@ -189,6 +192,27 @@ function RevenuePage() {
     openJobsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  async function handleExportPDF() {
+    if (!data) return;
+    setExportingPdf(true);
+    try {
+      await exportRevenuePDF(data);
+    } catch (err) {
+      toast.error(`PDF export failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  function handleExportExcel() {
+    if (!data) return;
+    try {
+      exportRevenueExcel(data);
+    } catch (err) {
+      toast.error(`Excel export failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // ---- Error state ----
   if (error) {
     return (
@@ -229,7 +253,7 @@ function RevenuePage() {
 
         {/* ---- Meta row ---- */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {data.cacheDaysAvailable < 30 && (
               <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
                 Cache has ~{data.cacheDaysAvailable}d of history
@@ -244,6 +268,26 @@ function RevenuePage() {
             >
               <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Syncing…" : "Sync 90d from HCP"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={!data}
+              className="h-7 text-xs gap-1.5 border-green-600 text-green-700 hover:bg-green-50"
+            >
+              <Sheet className="w-3 h-3" />
+              Export Excel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExportPDF}
+              disabled={!data || exportingPdf}
+              className="h-7 text-xs gap-1.5 border-red-600 text-red-700 hover:bg-red-50"
+            >
+              <FileDown className={`w-3 h-3 ${exportingPdf ? "animate-bounce" : ""}`} />
+              {exportingPdf ? "Generating…" : "Export PDF"}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
