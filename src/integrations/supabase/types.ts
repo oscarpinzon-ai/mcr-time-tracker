@@ -167,11 +167,14 @@ export type Database = {
           hcp_status: string | null
           hcp_type: string
           id: string
+          job_site_name: string | null
           last_synced_at: string | null
           number: string
+          purchase_order_number: string | null
           raw_data: Json | null
           scheduled_date: string | null
           updated_at: string
+          work_order_number: string | null
         }
         Insert: {
           address?: string | null
@@ -183,11 +186,14 @@ export type Database = {
           hcp_status?: string | null
           hcp_type: string
           id?: string
+          job_site_name?: string | null
           last_synced_at?: string | null
           number: string
+          purchase_order_number?: string | null
           raw_data?: Json | null
           scheduled_date?: string | null
           updated_at?: string
+          work_order_number?: string | null
         }
         Update: {
           address?: string | null
@@ -199,11 +205,14 @@ export type Database = {
           hcp_status?: string | null
           hcp_type?: string
           id?: string
+          job_site_name?: string | null
           last_synced_at?: string | null
           number?: string
+          purchase_order_number?: string | null
           raw_data?: Json | null
           scheduled_date?: string | null
           updated_at?: string
+          work_order_number?: string | null
         }
         Relationships: []
       }
