@@ -124,11 +124,17 @@ function getJobType(job: Record<string, unknown>): string | null {
   // work_line_items is only present on individual job fetches, not the bulk list endpoint
   const items = job.work_line_items as Array<{ name?: string }> | undefined;
   if (items?.[0]?.name) return items[0].name;
-  // Fallback to description / notes (available on the list endpoint)
+  // description is a plain string on the list endpoint
   const desc = job.description as string | undefined;
   if (desc?.trim()) return desc.trim();
-  const notes = job.notes as string | undefined;
-  if (notes?.trim()) return notes.trim();
+  // notes is an array of objects [{content: "..."}], not a plain string
+  const notes = job.notes as Array<{ content?: string }> | string | undefined;
+  if (Array.isArray(notes)) {
+    const first = notes.find((n) => n?.content?.trim())?.content;
+    if (first) return first.trim();
+  } else if (typeof notes === "string" && notes.trim()) {
+    return notes.trim();
+  }
   const tags = job.tags as string[] | undefined;
   if (tags?.[0]) return tags[0];
   return null;
