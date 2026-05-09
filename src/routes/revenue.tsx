@@ -398,21 +398,25 @@ function RevenuePage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold text-foreground">Customer Name</TableHead>
+                        <TableHead className="font-semibold text-foreground">Site / Location</TableHead>
+                        <TableHead className="font-semibold text-foreground hidden sm:table-cell">Company</TableHead>
                         <TableHead className="font-semibold text-foreground text-center">Jobs (90d)</TableHead>
                         <TableHead className="font-semibold text-foreground text-right">Revenue (90d)</TableHead>
-                        <TableHead className="font-semibold text-foreground text-right">Avg Job</TableHead>
+                        <TableHead className="font-semibold text-foreground text-right hidden md:table-cell">Avg Job</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.pmCandidates.map((c: PmCandidate) => (
-                        <TableRow key={c.customerName} className="hover:bg-muted/30">
-                          <TableCell className="font-medium">{c.customerName}</TableCell>
+                        <TableRow key={c.siteName} className="hover:bg-muted/30">
+                          <TableCell className="font-medium max-w-[200px] truncate">{c.siteName}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground hidden sm:table-cell max-w-[150px] truncate">
+                            {c.customerName !== c.siteName ? c.customerName : "—"}
+                          </TableCell>
                           <TableCell className="text-center tabular-nums font-semibold">{c.totalJobs}</TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             {c.totalRevenue > 0 ? fmt$(c.totalRevenue) : "—"}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                          <TableCell className="text-right tabular-nums text-muted-foreground hidden md:table-cell">
                             {c.totalRevenue > 0 ? fmt$(Math.round(c.totalRevenue / c.totalJobs)) : "—"}
                           </TableCell>
                         </TableRow>

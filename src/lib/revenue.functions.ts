@@ -37,11 +37,19 @@ type HcpRevenueJob = {
     email?: string;
   };
   address?: {
+    name?: string;   // property/location name e.g. "Target Round Rock"
     street?: string;
     city?: string;
     state?: string;
     zip?: string;
   };
+  // Enterprise HCP accounts may have a top-level location object
+  location?: {
+    name?: string;
+    address?: { name?: string; street?: string; city?: string; state?: string };
+  };
+  description?: string;
+  title?: string;
   schedule?: {
     scheduled_start?: string;
     scheduled_end?: string;
@@ -71,7 +79,8 @@ export type ReceivableJob = {
 };
 
 export type PmCandidate = {
-  customerName: string;
+  siteName: string;        // location/property identifier (address.name or street+city)
+  customerName: string;    // parent company name (for reference)
   totalJobs: number;
   totalRevenue: number;
   avgDaysToPay: number;
@@ -133,12 +142,63 @@ function getSupabase() {
 // Data extraction helpers
 // ---------------------------------------------------------------------------
 
+// MCR's own company names — used to filter out self-referential customer entries
+const MCR_NAMES_RE = /modern compactor repair|^mcr$/i;
+
+function isOwnCompany(s: string): boolean {
+  return MCR_NAMES_RE.test(s.trim());
+}
+
+/**
+ * Returns the best human-readable customer/site name for a job.
+ * Priority: location.name > address.name > customer company > street+city.
+ * Filters out MCR's own company name which HCP sometimes returns as customer.
+ */
 function getCustomerName(job: HcpRevenueJob): string {
-  if (job.customer?.company_name) return job.customer.company_name;
-  if (job.customer?.name) return job.customer.name;
+  // 1. Enterprise location object (HCP sometimes wraps address in a location)
+  const locName = job.location?.name ?? job.location?.address?.name;
+  if (locName && !isOwnCompany(locName)) return locName;
+
+  // 2. Address-level property name ("Target Round Rock", "Walmart #3421")
+  if (job.address?.name && !isOwnCompany(job.address.name)) return job.address.name;
+
+  // 3. Customer company name — skip if it's MCR itself
+  if (job.customer?.company_name && !isOwnCompany(job.customer.company_name))
+    return job.customer.company_name;
+
+  // 4. Customer full name
+  if (job.customer?.name && !isOwnCompany(job.customer.name)) return job.customer.name;
   const full = [job.customer?.first_name, job.customer?.last_name]
     .filter(Boolean).join(" ").trim();
-  return full || "Unknown Customer";
+  if (full && !isOwnCompany(full)) return full;
+
+  // 5. Street + city as a unique location identifier
+  const a = job.address;
+  if (a?.street && a?.city) return `${a.street}, ${a.city}`;
+  if (a?.city) return a.city;
+
+  return "Unknown";
+}
+
+/**
+ * Returns a site-level key for PM candidate grouping.
+ * More granular than company name — splits Synergy/Target Austin from Synergy/Target San Antonio.
+ */
+function getSiteName(job: HcpRevenueJob): string {
+  const locName = job.location?.name ?? job.location?.address?.name;
+  if (locName && !isOwnCompany(locName)) return locName;
+  if (job.address?.name && !isOwnCompany(job.address.name)) return job.address.name;
+
+  const a = job.address;
+  if (a?.street && a?.city) return `${a.street}, ${a.city}`;
+  if (a?.city) {
+    // Company + city to distinguish e.g. "Synergy – Austin" from "Synergy – San Antonio"
+    const company = job.customer?.company_name;
+    if (company && !isOwnCompany(company)) return `${company} — ${a.city}`;
+    return a.city;
+  }
+
+  return getCustomerName(job);
 }
 
 function getJobType(job: HcpRevenueJob): string | null {
@@ -157,21 +217,23 @@ function getCity(job: HcpRevenueJob): string | null {
   return job.address?.city ?? null;
 }
 
+/** HCP returns monetary values in cents — always divide by 100 before display. */
 function getInvoiceTotal(job: HcpRevenueJob): number {
+  let raw = 0;
   if (typeof job.total_amount === "number" && job.total_amount > 0)
-    return job.total_amount;
-  if (typeof job.invoice?.total === "number" && job.invoice.total > 0)
-    return job.invoice.total;
-  if (typeof job.invoice?.subtotal === "number" && job.invoice.subtotal > 0)
-    return job.invoice.subtotal;
-  if (job.work_line_items?.length) {
+    raw = job.total_amount;
+  else if (typeof job.invoice?.total === "number" && job.invoice.total > 0)
+    raw = job.invoice.total;
+  else if (typeof job.invoice?.subtotal === "number" && job.invoice.subtotal > 0)
+    raw = job.invoice.subtotal;
+  else if (job.work_line_items?.length) {
     const sum = job.work_line_items.reduce((acc, item) => {
       if (typeof item.total === "number") return acc + item.total;
       return acc + (item.unit_price ?? 0) * (item.quantity ?? 1);
     }, 0);
-    if (sum > 0) return sum;
+    raw = sum;
   }
-  return 0;
+  return raw > 0 ? raw / 100 : 0;
 }
 
 function getBalanceDue(job: HcpRevenueJob): number {
@@ -292,19 +354,29 @@ function processRevenueData(jobs: HcpRevenueJob[], cacheDaysAvailable: number): 
     return toChicagoDateStr(new Date(s)) >= ninetyDaysAgoStr;
   });
 
-  const customerMap = new Map<string, { jobs: HcpRevenueJob[]; revenue: number }>();
+  // Group by SITE (address.name / street+city) so that Synergy-Austin and
+  // Synergy-San Antonio appear as separate PM candidates, not one merged entry.
+  const customerMap = new Map<
+    string,
+    { jobs: HcpRevenueJob[]; revenue: number; parentCompany: string }
+  >();
   for (const job of completedInWindow) {
-    const name = getCustomerName(job);
-    const entry = customerMap.get(name) ?? { jobs: [], revenue: 0 };
+    const siteKey = getSiteName(job);
+    const entry = customerMap.get(siteKey) ?? {
+      jobs: [],
+      revenue: 0,
+      parentCompany: getCustomerName(job),
+    };
     entry.jobs.push(job);
     entry.revenue += getInvoiceTotal(job);
-    customerMap.set(name, entry);
+    customerMap.set(siteKey, entry);
   }
 
   const pmCandidates: PmCandidate[] = Array.from(customerMap.entries())
     .filter(([, e]) => e.jobs.length >= 3)
-    .map(([name, e]) => ({
-      customerName: name,
+    .map(([siteKey, e]) => ({
+      siteName: siteKey,
+      customerName: e.parentCompany,
       totalJobs: e.jobs.length,
       totalRevenue: e.revenue,
       avgDaysToPay: 0,

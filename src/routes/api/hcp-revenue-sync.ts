@@ -40,11 +40,28 @@ function mapStatus(hcpStatus: string | undefined): string {
   return hcpStatus;
 }
 
+const MCR_RE = /modern compactor repair|^mcr$/i;
+function isOwnCompany(s: string): boolean { return MCR_RE.test(s.trim()); }
+
 function getCustomerName(job: Record<string, unknown>): string | null {
+  // Try location/address name first (most specific: "Target Round Rock")
+  const loc = job.location as Record<string, unknown> | undefined;
+  const locName = (loc?.name ?? (loc?.address as Record<string,string>|undefined)?.name) as string | undefined;
+  if (locName && !isOwnCompany(locName)) return locName;
+
+  const addr = job.address as Record<string, string> | undefined;
+  if (addr?.name && !isOwnCompany(addr.name)) return addr.name;
+
   const c = job.customer as Record<string, string> | undefined;
-  if (c?.company_name) return c.company_name;
-  const name = [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim();
-  return name || null;
+  if (c?.company_name && !isOwnCompany(c.company_name)) return c.company_name;
+  if (c?.name && !isOwnCompany(c.name)) return c.name;
+  const full = [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim();
+  if (full && !isOwnCompany(full)) return full;
+
+  // Fallback: street + city as site identifier
+  if (addr?.street && addr?.city) return `${addr.street}, ${addr.city}`;
+  if (addr?.city) return addr.city;
+  return null;
 }
 
 function getJobAddress(job: Record<string, unknown>): string | null {
